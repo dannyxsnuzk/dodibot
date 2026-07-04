@@ -37,8 +37,15 @@ class Settings(BaseSettings):
     payment_verify_interval_seconds: int = Field(12, alias="PAYMENT_VERIFY_INTERVAL_SECONDS")
 
     database_url: str = Field(
-        "sqlite+aiosqlite:///./data/bot.db", alias="DATABASE_URL"
-    )
+    "sqlite+aiosqlite:///./data/bot.db", alias="DATABASE_URL"
+)
+
+@field_validator("database_url", mode="before")
+@classmethod
+def _fix_database_url(cls, v: str) -> str:
+    if isinstance(v, str) and v.startswith("postgresql://"):
+        return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return v
 
     dashboard_host: str = Field("127.0.0.1", alias="DASHBOARD_HOST")
     dashboard_port: int = Field(8088, alias="DASHBOARD_PORT")

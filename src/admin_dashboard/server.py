@@ -82,6 +82,11 @@ async def get_db() -> AsyncSession:
 
 # ───────── routes ───────────────────────────────────────────────────────────
 
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @app.get("/login", response_class=HTMLResponse)
 async def login_form(request: Request, error: str | None = None) -> HTMLResponse:
     return templates.TemplateResponse(request, "login.html", {"error": error})

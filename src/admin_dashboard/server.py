@@ -1,14 +1,4 @@
-"""Localhost-only admin dashboard.
-
-Run with:
-    python -m src.admin_dashboard
-
-Or via the start_dashboard scripts in the repo root.
-
-The dashboard binds to 127.0.0.1 by default. Authentication is a single
-shared password from .env (DASHBOARD_PASSWORD) — sufficient for a
-single-admin local panel. Don't expose this to the internet.
-"""
+"""FastAPI application served by the single Uvicorn instance in ``bot.py``."""
 from __future__ import annotations
 
 import logging
@@ -18,7 +8,6 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 import bcrypt
-import uvicorn
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -38,7 +27,7 @@ from ..db.models import (
     Withdrawal,
 )
 from ..repositories import payments as payments_repo
-from ..db.session import SessionLocal, init_db
+from ..db.session import SessionLocal
 from ..repositories import products as products_repo
 from ..repositories import withdrawals as wd_repo
 from ..services.shop import BuyError, OutOfStock, buy_product_quantity
@@ -485,23 +474,3 @@ async def payments_reject(
         return RedirectResponse("/payments?flash=already_delivered", status_code=303)
     await payments_repo.mark_rejected(db, payment, status="manual_rejected", note=note, decided_by=0)
     return RedirectResponse("/payments?flash=rejected", status_code=303)
-
-
-def main() -> None:
-    """CLI entrypoint: ``python -m src.admin_dashboard``."""
-    logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s %(levelname)s %(name)s | %(message)s",
-                        datefmt="%H:%M:%S")
-    import asyncio
-    asyncio.run(init_db())
-    uvicorn.run(
-        "src.admin_dashboard.server:app",
-        host=settings.dashboard_host,
-        port=settings.dashboard_port,
-        log_level=settings.log_level.lower(),
-        reload=False,
-    )
-
-
-if __name__ == "__main__":
-    main()

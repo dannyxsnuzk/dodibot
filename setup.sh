@@ -37,13 +37,12 @@ python -m pip install -r requirements.txt
 
 python setup.py
 
-chmod +x run.sh run-dashboard.sh 2>/dev/null || true
+chmod +x run.sh 2>/dev/null || true
 
 echo
 echo "===================================================================="
 echo " All set. Use these next time:"
-echo "   ./run.sh            - start the bot (long-polling)"
-echo "   ./run-dashboard.sh  - open the admin dashboard at 127.0.0.1:8088"
+echo "   ./run.sh  - start the bot and admin dashboard"
 echo "===================================================================="
 echo
 

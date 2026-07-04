@@ -55,8 +55,7 @@ if errorlevel 1 (
 echo.
 echo ====================================================================
 echo  All set. Use these next time:
-echo    run.bat            - start the bot (long-polling)
-echo    run-dashboard.bat  - open the admin dashboard at 127.0.0.1:8088
+echo    run.bat  - start the bot and admin dashboard
 echo ====================================================================
 echo.
 

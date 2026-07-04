@@ -32,14 +32,8 @@ Start the bot:
 python bot.py
 ```
 
-Optional dashboard in a second terminal:
-
-```bat
-.venv\Scripts\activate
-python dashboard.py
-```
-
-Open <http://127.0.0.1:8088>.
+The same command starts both the Telegram bot and dashboard. Locally, open
+<http://127.0.0.1:8088>. On Railway, open the service's public URL.
 
 ## 2. User Flow
 
@@ -145,13 +139,14 @@ Pages:
 - **Orders**: recent fulfillment history.
 - **Users**: search users, ban/unban, and adjust balances.
 
-Keep the dashboard bound to `127.0.0.1` unless you add stronger authentication.
+`DASHBOARD_HOST` controls local development only. Railway always binds to
+`0.0.0.0` and uses its `PORT`.
 
 ## 9. Backup And Reset
 
 - Database: `data/bot.db`
 - Backup: copy `data/bot.db`
-- Reset: stop bot/dashboard, delete `data/bot.db`, start again
+- Reset: stop `bot.py`, delete `data/bot.db`, start again
 - Emoji map: `assets/premium_emojis.json`
 
 ## 10. Quick Reference
@@ -159,7 +154,6 @@ Keep the dashboard bound to `127.0.0.1` unless you add stronger authentication.
 ```text
 RUN:
   python bot.py
-  python dashboard.py
 
 ADD PRODUCT:
   /addproduct chatgpt_pro_12m|ChatGPT Pro|🤖|12m|19.99

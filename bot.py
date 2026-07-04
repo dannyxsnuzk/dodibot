@@ -16,11 +16,16 @@ from src.main import amain as run_bot
 
 
 async def run_dashboard() -> None:
-    """Serve the FastAPI dashboard without starting another process."""
+    """Serve the FastAPI dashboard from the application's only Uvicorn server."""
     settings = get_settings()
-    railway_port = os.getenv("PORT")
-    host = "0.0.0.0" if railway_port else settings.dashboard_host
-    port = int(railway_port) if railway_port else settings.dashboard_port
+    is_railway = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("PORT"))
+    if is_railway:
+        host = "0.0.0.0"
+        port = int(os.environ.get("PORT", "8088"))
+    else:
+        host = settings.dashboard_host
+        port = settings.dashboard_port
+
     config = uvicorn.Config(
         "src.admin_dashboard.server:app",
         host=host,
@@ -32,9 +37,11 @@ async def run_dashboard() -> None:
 
 
 async def amain() -> None:
+    # Start the HTTP listener first so Railway can reach the service while the
+    # Telegram bot performs database, Binance, and Telegram initialization.
     tasks = {
-        asyncio.create_task(run_bot(), name="telegram-bot"),
         asyncio.create_task(run_dashboard(), name="admin-dashboard"),
+        asyncio.create_task(run_bot(), name="telegram-bot"),
     }
     done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
 

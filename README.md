@@ -2,7 +2,7 @@
 
 A Telegram shop bot for digital products: product catalog, stock delivery,
 Binance payment verification, referrals, withdrawals, admin commands, and a
-localhost-only FastAPI dashboard.
+FastAPI dashboard.
 
 ## Stack
 
@@ -23,14 +23,9 @@ copy .env.example .env
 python bot.py
 ```
 
-Optional dashboard in a second terminal:
-
-```sh
-.venv\Scripts\activate
-python dashboard.py
-```
-
-Open <http://127.0.0.1:8088> and log in with `DASHBOARD_PASSWORD`.
+The same `python bot.py` process starts both the Telegram bot and the dashboard.
+For local development, open <http://127.0.0.1:8088> and log in with
+`DASHBOARD_PASSWORD`. On Railway, use the service's public URL.
 
 ## Configuration
 
@@ -48,8 +43,8 @@ Copy `.env.example` to `.env` and fill in:
 | `BINANCE_SECRET_KEY`       | Binance API secret used for signed verification calls.    |
 | `BINANCE_API_BASE_URL`     | Defaults to `https://api.binance.com`.                    |
 | `DATABASE_URL`             | Defaults to `sqlite+aiosqlite:///./data/bot.db`.          |
-| `DASHBOARD_HOST`           | Defaults to `127.0.0.1`. Keep local.                      |
-| `DASHBOARD_PORT`           | Defaults to `8088`.                                       |
+| `DASHBOARD_HOST`           | Local-only bind host; Railway always overrides to `0.0.0.0`. |
+| `DASHBOARD_PORT`           | Local-only port; Railway uses `PORT` (default `8088`).     |
 | `DASHBOARD_PASSWORD`       | Password for the local dashboard.                         |
 | `DASHBOARD_SESSION_SECRET` | Random string for dashboard cookies.                      |
 | `WITHDRAW_MIN`             | Minimum withdrawal amount.                                |
@@ -140,5 +135,5 @@ src/
 
 - Stock is delivered from `stock_items` one row at a time.
 - The bot keeps a single-message menu UX by editing the same Telegram message.
-- The dashboard is designed for localhost. Do not expose it publicly without stronger auth.
+- Railway ignores `DASHBOARD_HOST` and binds the dashboard to `0.0.0.0:$PORT`.
 - `.env` is ignored by git and should stay private.

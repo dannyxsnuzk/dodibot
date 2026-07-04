@@ -37,9 +37,8 @@ HOW TO RUN IT  (Windows)
   Step 2 - Next time you want to start the bot:
              double-click  run.bat
 
-  Step 3 - To open the admin web dashboard:
-             double-click  run-dashboard.bat
-             then visit http://127.0.0.1:8088 in your browser
+  Step 3 - To open the admin web dashboard while run.bat is running:
+             visit http://127.0.0.1:8088 in your browser
              (the password was shown to you at the end of setup,
              and is stored in the .env file).
 
@@ -49,13 +48,12 @@ HOW TO RUN IT  (macOS / Linux)
 
   Open a Terminal in this folder and run:
 
-      chmod +x setup.sh run.sh run-dashboard.sh
+      chmod +x setup.sh run.sh
       ./setup.sh
 
   Then later:
 
-      ./run.sh            # start the bot
-      ./run-dashboard.sh  # start the admin dashboard
+      ./run.sh  # start the bot and admin dashboard
 
 
 WHAT GOES IN .env

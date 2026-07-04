@@ -1,7 +1,6 @@
-"""Bot entrypoint: polling + DB init + seed + dashboard side-process."""
+"""Telegram polling lifecycle, orchestrated by the sole entrypoint in bot.py."""
 from __future__ import annotations
 
-import asyncio
 import logging
 import sys
 
@@ -152,14 +151,3 @@ async def _publish_commands(bot: Bot, admin_ids: list[int]) -> None:
             await bot.set_my_commands(_ADMIN_COMMANDS, scope=BotCommandScopeChat(chat_id=aid))
         except Exception as e:
             log.warning("set_my_commands (admin %s) failed: %s", aid, e)
-
-
-def main() -> None:
-    try:
-        asyncio.run(amain())
-    except (KeyboardInterrupt, SystemExit):
-        pass
-
-
-if __name__ == "__main__":
-    main()

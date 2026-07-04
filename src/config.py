@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     )
 
     bot_token: str = Field(..., alias="BOT_TOKEN")
-    admin_ids: list[int] = Field(default_factory=list, alias="ADMIN_IDS")
+    admin_ids: list[int] | int | str = Field(default_factory=list, alias="ADMIN_IDS")
     # If empty, src.main fills this in from getMe() at startup so referral links
     # always use the correct username.
     bot_username: str = Field("", alias="BOT_USERNAME")
@@ -68,15 +68,21 @@ def _fix_database_url(cls, v: str) -> str:
     button_styles_enabled: bool = Field(True, alias="BUTTON_STYLES_ENABLED")
 
     @field_validator("admin_ids", mode="before")
-    @classmethod
-    def _parse_admin_ids(cls, v: object) -> list[int]:
-        if v is None or v == "":
-            return []
-        if isinstance(v, list):
-            return [int(x) for x in v]
-        if isinstance(v, str):
-            return [int(x.strip()) for x in v.split(",") if x.strip()]
-        return [int(v)]  # type: ignore[arg-type]
+@classmethod
+def _parse_admin_ids(cls, v):
+    if v is None or v == "":
+        return []
+
+    if isinstance(v, int):
+        return [v]
+
+    if isinstance(v, str):
+        return [int(x.strip()) for x in v.split(",") if x.strip()]
+
+    if isinstance(v, list):
+        return [int(x) for x in v]
+
+    return [int(v)]
 
     @property
     def project_root(self) -> Path:

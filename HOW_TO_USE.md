@@ -139,8 +139,7 @@ Pages:
 - **Orders**: recent fulfillment history.
 - **Users**: search users, ban/unban, and adjust balances.
 
-`DASHBOARD_HOST` controls local development only. Railway always binds to
-`0.0.0.0` and uses its `PORT`.
+The dashboard always binds to `0.0.0.0` and uses `PORT` (default `8088`).
 
 ## 9. Backup And Reset
 

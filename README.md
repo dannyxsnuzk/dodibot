@@ -43,8 +43,6 @@ Copy `.env.example` to `.env` and fill in:
 | `BINANCE_SECRET_KEY`       | Binance API secret used for signed verification calls.    |
 | `BINANCE_API_BASE_URL`     | Defaults to `https://api.binance.com`.                    |
 | `DATABASE_URL`             | Defaults to `sqlite+aiosqlite:///./data/bot.db`.          |
-| `DASHBOARD_HOST`           | Local-only bind host; Railway always overrides to `0.0.0.0`. |
-| `DASHBOARD_PORT`           | Local-only port; Railway uses `PORT` (default `8088`).     |
 | `DASHBOARD_PASSWORD`       | Password for the local dashboard.                         |
 | `DASHBOARD_SESSION_SECRET` | Random string for dashboard cookies.                      |
 | `WITHDRAW_MIN`             | Minimum withdrawal amount.                                |
@@ -135,5 +133,5 @@ src/
 
 - Stock is delivered from `stock_items` one row at a time.
 - The bot keeps a single-message menu UX by editing the same Telegram message.
-- Railway ignores `DASHBOARD_HOST` and binds the dashboard to `0.0.0.0:$PORT`.
+- The dashboard always binds to `0.0.0.0` and uses `PORT` (default `8088`).
 - `.env` is ignored by git and should stay private.

@@ -83,8 +83,6 @@ class Settings(BaseSettings):
 
         return [int(v)]
 
-    dashboard_host: str = Field("127.0.0.1", alias="DASHBOARD_HOST")
-    dashboard_port: int = Field(8088, alias="DASHBOARD_PORT")
     dashboard_password: str = Field("change_me", alias="DASHBOARD_PASSWORD")
     dashboard_session_secret: str = Field(
         "change_me_session",

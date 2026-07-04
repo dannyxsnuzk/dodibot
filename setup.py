@@ -121,9 +121,7 @@ BINANCE_API_BASE_URL=https://api.binance.com
 # SQLite by default. To switch to Postgres later, use postgresql+asyncpg://...
 DATABASE_URL=sqlite+aiosqlite:///./data/bot.db
 
-# Localhost-only admin web dashboard (http://127.0.0.1:8088)
-DASHBOARD_HOST=127.0.0.1
-DASHBOARD_PORT=8088
+# Admin web dashboard (always binds to 0.0.0.0:$PORT, default port 8088)
 DASHBOARD_PASSWORD={DASHBOARD_PASSWORD}
 DASHBOARD_SESSION_SECRET={DASHBOARD_SESSION_SECRET}
 

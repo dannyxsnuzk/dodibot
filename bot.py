@@ -18,18 +18,10 @@ from src.main import amain as run_bot
 async def run_dashboard() -> None:
     """Serve the FastAPI dashboard from the application's only Uvicorn server."""
     settings = get_settings()
-    is_railway = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("PORT"))
-    if is_railway:
-        host = "0.0.0.0"
-        port = int(os.environ.get("PORT", "8088"))
-    else:
-        host = settings.dashboard_host
-        port = settings.dashboard_port
-
     config = uvicorn.Config(
         "src.admin_dashboard.server:app",
-        host=host,
-        port=port,
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 8088)),
         log_level=settings.log_level.lower(),
         reload=False,
     )

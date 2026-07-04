@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+  <h2 style="margin-top:0">Pending withdrawals ({{ pending|length }})</h2>
+  {% if pending %}
+  <table>
+    <tr><th>#</th><th>User</th><th>Method</th><th>Amount</th><th>Address</th><th>Created</th><th>Action</th></tr>
+    {% for w in pending %}
+    <tr>
+      <td>{{ w.id }}</td>
+      <td><code>{{ w.user_id }}</code></td>
+      <td>{{ w.method.upper() }}</td>
+      <td>{{ "%.2f"|format(w.amount_usdt) }} USDT</td>
+      <td><code>{{ w.address }}</code></td>
+      <td>{{ w.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+      <td>
+        <form class="inline" method="post" action="/withdrawals/{{ w.id }}/approve"><button>Approve</button></form>
+        <form class="inline" method="post" action="/withdrawals/{{ w.id }}/reject"><button class="danger">Reject + refund</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+    <p class="muted">No pending withdrawals.</p>
+  {% endif %}
+
+  <h2>Recent decisions</h2>
+  <table>
+    <tr><th>#</th><th>User</th><th>Method</th><th>Amount</th><th>Status</th><th>Address</th><th>Decided</th></tr>
+    {% for w in decided %}
+    <tr>
+      <td>{{ w.id }}</td>
+      <td><code>{{ w.user_id }}</code></td>
+      <td>{{ w.method.upper() }}</td>
+      <td>{{ "%.2f"|format(w.amount_usdt) }} USDT</td>
+      <td><span class="pill {% if w.status == 'approved' %}ok{% else %}bad{% endif %}">{{ w.status }}</span></td>
+      <td><code>{{ w.address }}</code></td>
+      <td>{{ w.decided_at.strftime("%Y-%m-%d %H:%M") if w.decided_at else "—" }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+{% endblock %}

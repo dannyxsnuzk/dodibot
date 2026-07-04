@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+  <h2 style="margin-top:0">Overview</h2>
+  <div class="grid">
+    <div class="card"><h2>Users</h2><div class="v">{{ n_users }}</div></div>
+    <div class="card"><h2>Orders</h2><div class="v">{{ n_orders }}</div></div>
+    <div class="card"><h2>Order value</h2><div class="v">{{ "%.2f"|format(order_value) }} <span class="muted" style="font-size:14px">USDT</span></div></div>
+    <div class="card"><h2>Available stock</h2><div class="v">{{ n_stock }}</div></div>
+    <div class="card"><h2>Pending withdrawals</h2><div class="v">{{ n_wd_pending }}</div></div>
+  </div>
+  <p style="margin-top:24px" class="muted">
+    Use the navigation above to manage products, stock, withdrawals and users.
+    All changes here apply instantly to the bot — no restart needed.
+  </p>
+{% endblock %}

@@ -1,0 +1,93 @@
+====================================================================
+  Dodi Store BOT - quick start
+====================================================================
+
+WHAT YOU NEED FIRST
+-------------------
+
+1. Python 3.11 or newer.
+   Windows: install from https://www.python.org/downloads/ and TICK
+            the box "Add python.exe to PATH" during install.
+   macOS:   brew install python@3.12
+   Linux:   sudo apt install python3.12 python3.12-venv  (or your
+            distro's equivalent)
+
+2. A bot token from Telegram.
+   Open Telegram, search "@BotFather", press Start, send /newbot,
+   answer the questions. You'll get a token that looks like:
+       1234567890:AAEXAMPLE_TOKEN_FROM_BOTFATHER_REPLACE
+
+3. Your own Telegram numeric user ID.
+   Open Telegram, search "@userinfobot", press Start. It will reply
+   with your ID (a long number).
+
+
+HOW TO RUN IT  (Windows)
+------------------------
+
+  Step 1 - Double-click  setup.bat
+           Answer the questions. The script will:
+             * create a .venv folder
+             * install dependencies
+             * ask for your bot token, admin ID, etc.
+             * generate a random dashboard password for you
+             * write all of that into a .env file
+             * offer to launch the bot
+
+  Step 2 - Next time you want to start the bot:
+             double-click  run.bat
+
+  Step 3 - To open the admin web dashboard:
+             double-click  run-dashboard.bat
+             then visit http://127.0.0.1:8088 in your browser
+             (the password was shown to you at the end of setup,
+             and is stored in the .env file).
+
+
+HOW TO RUN IT  (macOS / Linux)
+-------------------------------
+
+  Open a Terminal in this folder and run:
+
+      chmod +x setup.sh run.sh run-dashboard.sh
+      ./setup.sh
+
+  Then later:
+
+      ./run.sh            # start the bot
+      ./run-dashboard.sh  # start the admin dashboard
+
+
+WHAT GOES IN .env
+-----------------
+You don't have to edit it by hand - setup.bat / setup.sh do it for you
+the first time. But if you want to change a value later, open .env in
+Notepad / any text editor. Comments inside the file explain each line.
+
+To rotate your bot token after a leak:
+   Open Telegram - @BotFather - /revoke - pick the bot - copy the new
+   token - paste it as BOT_TOKEN= in .env - restart the bot.
+
+
+COMMON ISSUES
+-------------
+
+"python is not recognized as a command" (Windows):
+    You skipped "Add python.exe to PATH" during install. Reinstall
+    Python and tick that box, OR uninstall and use the Microsoft
+    Store version of Python (it adds itself to PATH automatically).
+
+"Bot keeps starting then stops" / "Conflict: terminated by other
+getUpdates request":
+    The same bot token is running on two machines at once. Pick one,
+    or revoke the token via @BotFather and update .env.
+
+"Dashboard 401":
+    The DASHBOARD_PASSWORD in .env is the one to use. setup.bat shows
+    it at the end - if you missed it, open .env in Notepad.
+
+"Premium emojis don't show on buttons":
+    The bot owner's Telegram account needs an active Telegram Premium
+    subscription. Without it, set PREMIUM_BUTTON_ICONS=false in .env.
+
+====================================================================

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+  <h2 style="margin-top:0">Recent orders</h2>
+  <table>
+    <tr><th>#</th><th>User</th><th>Product</th><th>Price</th><th>Date</th><th>Payload</th></tr>
+    {% for order, product, user in rows %}
+    <tr>
+      <td>{{ order.id }}</td>
+      <td><code>{{ user.id }}</code> @{{ user.username or "—" }}</td>
+      <td>{{ product.emoji }} {{ product.display_name }} <code>{{ product.duration_label }}</code></td>
+      <td>{{ "%.2f"|format(order.price_usdt) }} USDT</td>
+      <td>{{ order.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+      <td><details><summary class="muted">show</summary><pre style="white-space:pre-wrap;background:#0d1117;padding:8px;border-radius:6px">{{ order.payload_snapshot }}</pre></details></td>
+    </tr>
+    {% endfor %}
+  </table>
+{% endblock %}

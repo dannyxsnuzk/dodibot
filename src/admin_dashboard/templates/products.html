@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block content %}
+  <h2 style="margin-top:0">Products</h2>
+
+  {% if flash %}
+    <div style="background:#1f2933; border:1px solid #2d333b; padding:10px 14px;
+                border-radius:8px; margin-bottom:14px;">
+      {{ flash }}
+    </div>
+  {% endif %}
+
+  <details style="margin-bottom: 16px">
+    <summary><b>+ Add new product</b></summary>
+    <form method="post" action="/products/new" style="margin-top: 12px; background:#161b22; padding:14px; border-radius:8px;">
+      <div class="row">
+        <div><label>Slug (unique)</label><input name="slug" required /></div>
+        <div><label>Display name</label><input name="display_name" required /></div>
+      </div>
+      <div class="row">
+        <div><label>Emoji</label><input name="emoji" value="📦" /></div>
+        <div><label>Duration label</label><input name="duration_label" value="12m" /></div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Premium emoji ID <small>(optional)</small></label>
+          <input name="emoji_id" placeholder="e.g. 5368324170671202286" />
+        </div>
+        <div></div>
+      </div>
+      <div class="row">
+        <div><label>Price (USDT)</label><input name="price_usdt" value="0" /></div>
+        <div><label>Sort order</label><input name="sort_order" type="number" value="0" /></div>
+      </div>
+      <label>Description</label>
+      <textarea name="description" rows="3"></textarea>
+      <label style="margin-top:8px"><input type="checkbox" name="is_active" checked /> Active</label>
+      <div style="margin-top:10px"><button type="submit">Create</button></div>
+    </form>
+  </details>
+
+  <table>
+    <tr>
+      <th>Status</th><th>Slug</th><th>Name</th><th>Duration</th>
+      <th>Price</th><th>Stock</th><th>Orders</th><th>Manage</th>
+    </tr>
+    {% for p, stock in products %}
+    {% set norders = order_counts.get(p.id, 0) %}
+    <tr>
+      <td><span class="pill ok">active</span></td>
+      <td><code>{{ p.slug }}</code></td>
+      <td>{{ p.emoji }} {{ p.display_name }}</td>
+      <td>{{ p.duration_label }}</td>
+      <td>{{ "%.2f"|format(p.price_usdt) }}</td>
+      <td>{{ stock }}</td>
+      <td>{{ norders }}</td>
+      <td>
+        <details>
+          <summary>Edit / Stock / Delete</summary>
+          <form method="post" action="/products/{{ p.slug }}/update" style="margin-top:8px;">
+            <div class="row">
+              <div><label>Name</label><input name="display_name" value="{{ p.display_name }}" /></div>
+              <div><label>Emoji</label><input name="emoji" value="{{ p.emoji }}" /></div>
+            </div>
+            <div class="row">
+              <div>
+                <label>Premium emoji ID <small>(blank = none)</small></label>
+                <input name="emoji_id" value="{{ p.emoji_id or '' }}" placeholder="e.g. 5368324170671202286" />
+              </div>
+              <div><label>Duration</label><input name="duration_label" value="{{ p.duration_label }}" /></div>
+            </div>
+            <div class="row">
+              <div><label>Price</label><input name="price_usdt" value="{{ p.price_usdt }}" /></div>
+              <div></div>
+            </div>
+            <label>Description</label>
+            <textarea name="description" rows="2">{{ p.description }}</textarea>
+            <div class="row">
+              <div><label>Sort order</label><input name="sort_order" type="number" value="{{ p.sort_order }}" /></div>
+              <div><label style="margin-top:18px"><input type="checkbox" name="is_active" {% if p.is_active %}checked{% endif %} /> Active</label></div>
+            </div>
+            <button type="submit" style="margin-top:8px">Save</button>
+          </form>
+
+          <form method="post" action="/products/{{ p.slug }}/stock" enctype="multipart/form-data"
+                style="margin-top:14px; padding-top:12px; border-top:1px solid #2d333b;">
+            <label>Add stock — paste lines (one per row) or upload .txt</label>
+            <textarea name="paste" rows="3" placeholder="email1@x.com:Pass1!&#10;email2@x.com:Pass2!"></textarea>
+            <input type="file" name="file" style="margin-top:6px" />
+            <button type="submit" style="margin-top:6px">Add stock</button>
+          </form>
+
+          <div style="margin-top:14px; padding-top:12px; border-top:1px solid #2d333b;">
+            <b style="color:#ff7b7b;">Danger zone</b>
+            <form method="post" action="/products/{{ p.slug }}/clearstock"
+                  onsubmit="return confirm('Delete all {{ stock }} unsold stock items for {{ p.slug }}? Sold items stay.');"
+                  style="display:inline-block; margin-top:6px; margin-right:8px;">
+              <button type="submit" style="background:#5b2222; color:#fff;">Clear unsold stock ({{ stock }})</button>
+            </form>
+            {% if norders == 0 %}
+              <form method="post" action="/products/{{ p.slug }}/delete"
+                    onsubmit="return confirm('Permanently DELETE the product {{ p.slug }} and all its unsold stock?');"
+                    style="display:inline-block; margin-top:6px;">
+                <button type="submit" style="background:#7a1f1f; color:#fff;">Delete product</button>
+              </form>
+            {% else %}
+              <span style="opacity:.6; margin-left:8px;">
+                Cannot delete — has {{ norders }} order(s). Untick <i>Active</i> above to hide instead.
+              </span>
+            {% endif %}
+          </div>
+        </details>
+      </td>
+    </tr>
+    {% endfor %}
+
+    {% for p in inactive %}
+    {% set norders = order_counts.get(p.id, 0) %}
+    <tr style="opacity:.7">
+      <td><span class="pill bad">inactive</span></td>
+      <td><code>{{ p.slug }}</code></td>
+      <td>{{ p.emoji }} {{ p.display_name }}</td>
+      <td>{{ p.duration_label }}</td>
+      <td>{{ "%.2f"|format(p.price_usdt) }}</td>
+      <td>—</td>
+      <td>{{ norders }}</td>
+      <td>
+        <details>
+          <summary>Edit / Delete</summary>
+          <form method="post" action="/products/{{ p.slug }}/update" style="margin-top:8px;">
+            <div class="row">
+              <div><label>Name</label><input name="display_name" value="{{ p.display_name }}" /></div>
+              <div><label>Emoji</label><input name="emoji" value="{{ p.emoji }}" /></div>
+            </div>
+            <div class="row">
+              <div><label>Duration</label><input name="duration_label" value="{{ p.duration_label }}" /></div>
+              <div><label>Price</label><input name="price_usdt" value="{{ p.price_usdt }}" /></div>
+            </div>
+            <label>Description</label>
+            <textarea name="description" rows="2">{{ p.description }}</textarea>
+            <div class="row">
+              <div><label>Sort order</label><input name="sort_order" type="number" value="{{ p.sort_order }}" /></div>
+              <div><label style="margin-top:18px"><input type="checkbox" name="is_active" /> Active</label></div>
+            </div>
+            <button type="submit" style="margin-top:8px">Save</button>
+          </form>
+
+          <div style="margin-top:14px; padding-top:12px; border-top:1px solid #2d333b;">
+            <b style="color:#ff7b7b;">Danger zone</b>
+            {% if norders == 0 %}
+              <form method="post" action="/products/{{ p.slug }}/delete"
+                    onsubmit="return confirm('Permanently DELETE the product {{ p.slug }}?');"
+                    style="display:inline-block; margin-top:6px;">
+                <button type="submit" style="background:#7a1f1f; color:#fff;">Delete product</button>
+              </form>
+            {% else %}
+              <span style="opacity:.6;">
+                Cannot delete — has {{ norders }} order(s).
+              </span>
+            {% endif %}
+          </div>
+        </details>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+{% endblock %}

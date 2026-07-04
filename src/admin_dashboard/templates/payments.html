@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Payments · Dodi Store Admin{% endblock %}
+{% block content %}
+<style>
+  .page-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-end;
+    margin-bottom: 18px;
+  }
+  .page-head h2 {
+    margin: 0;
+    font-size: 24px;
+  }
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .metric {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .metric .label {
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .metric .value {
+    font-size: 24px;
+    font-weight: 700;
+  }
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .toolbar form {
+    min-width: 320px;
+  }
+  .ledger {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+  .ledger table {
+    min-width: 1320px;
+    border: 0;
+    border-radius: 0;
+  }
+  .amount {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .txid {
+    max-width: 420px;
+    word-break: break-all;
+  }
+  .note {
+    max-width: 340px;
+    word-break: break-word;
+  }
+  .product-name {
+    font-weight: 650;
+  }
+  .status-delivered,
+  .status-auto_verified,
+  .status-manual_approved {
+    background: #0d3320;
+    color: #56d364;
+  }
+  .status-pending,
+  .status-manual_review {
+    background: #2d2410;
+    color: #e3b341;
+  }
+  .status-auto_rejected,
+  .status-manual_rejected,
+  .status-delivery_failed,
+  .status-invalid_reference,
+  .status-duplicate_reference {
+    background: #3c1518;
+    color: #ff7b72;
+  }
+  @media (max-width: 900px) {
+    .page-head,
+    .toolbar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+    .summary-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .toolbar form {
+      min-width: 0;
+    }
+  }
+</style>
+
+<div class="page-head">
+  <div>
+    <h2>Payments</h2>
+    <p class="muted" style="margin:6px 0 0">Received payments, TxIDs, products, and verification status.</p>
+  </div>
+</div>
+
+{% if flash %}
+<p class="muted">{{ flash }}</p>
+{% endif %}
+
+<div class="summary-grid">
+  <div class="metric">
+    <div class="label">Total expected</div>
+    <div class="value">{{ "%.2f"|format(total_expected) }} <span class="muted" style="font-size:13px">USDT</span></div>
+  </div>
+  <div class="metric">
+    <div class="label">Total received</div>
+    <div class="value">{{ "%.2f"|format(total_received) }} <span class="muted" style="font-size:13px">USDT</span></div>
+  </div>
+  <div class="metric">
+    <div class="label">Delivered</div>
+    <div class="value">{{ delivered_count }}</div>
+  </div>
+  <div class="metric">
+    <div class="label">Open</div>
+    <div class="value">{{ pending_count }}</div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <form method="get" action="/payments">
+    <label>Status</label>
+    <select name="status" onchange="this.form.submit()">
+      {% for opt in [
+        "all",
+        "pending",
+        "auto_verified",
+        "auto_rejected",
+        "manual_review",
+        "manual_approved",
+        "manual_rejected",
+        "delivered",
+        "delivery_failed",
+        "duplicate_reference",
+        "invalid_reference"
+      ] %}
+      <option value="{{ opt }}" {% if status == opt %}selected{% endif %}>{{ opt }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  <span class="muted">Showing {{ rows|length }} latest payment records</span>
+</div>
+
+<div class="ledger">
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Time</th>
+        <th>User</th>
+        <th>Product</th>
+        <th>TxID</th>
+        <th>Qty</th>
+        <th class="amount">Expected</th>
+        <th class="amount">Received</th>
+        <th>Status</th>
+        <th>Note</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p, product, user in rows %}
+      <tr>
+        <td><code>#{{ p.id }}</code></td>
+        <td>
+          {{ p.created_at.strftime("%Y-%m-%d") if p.created_at else "-" }}<br>
+          <span class="muted">{{ p.created_at.strftime("%H:%M") if p.created_at else "" }}</span>
+        </td>
+        <td>
+          <code>{{ p.user_id }}</code><br>
+          <span class="muted">@{{ user.username or "-" }}</span>
+        </td>
+        <td>
+          <span class="product-name">{{ product.display_name }}</span><br>
+          <span class="muted">{{ product.duration_label }}</span>
+        </td>
+        <td class="txid"><code>{{ p.reference }}</code></td>
+        <td>{{ p.qty }}</td>
+        <td class="amount">{{ "%.2f"|format(p.expected_amount_usdt) }}</td>
+        <td class="amount">{{ "%.2f"|format(p.received_amount_usdt) if p.received_amount_usdt is not none else "-" }}</td>
+        <td><span class="pill status-{{ p.status }}">{{ p.status }}</span></td>
+        <td class="muted note">{{ p.verification_note or "-" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

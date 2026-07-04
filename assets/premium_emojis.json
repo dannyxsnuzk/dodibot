@@ -1,0 +1,149 @@
+{
+  "_doc": "Map a logical name -> Telegram premium custom_emoji_id. Use /getemoji in chat to capture IDs by replying to a premium emoji. The fallback character is rendered when the user's client cannot show the premium emoji. Keys whose name starts with `product_` are intended for the Product.emoji column (set per-product with /setemoji <slug> <id>); the rest are referenced from the bot's code via pe('name'). IDs are stored as strings because Telegram emoji IDs exceed 2^53 and lose precision when parsed as JSON numbers.",
+
+  "emojis": {
+    "_section_main_menu": "── main menu / brand ─────────────────────────",
+    "shop": { "fallback": "🛍️", "id": "5456343263340405032" },
+    "wallet": { "fallback": "💳", "id": "5769126056262898415" },
+    "user": { "fallback": "👤", "id": "5258011929993026890" },
+    "support": { "fallback": "🆘", "id": "5875397965371151542" },
+    "refer": { "fallback": "🌟", "id": "5834597438211494435" },
+
+    "_section_navigation": "── navigation / chrome ─────────────────────  ──",
+    "back": { "fallback": "🔙", "id": "5352759161945867747" },
+    "home": { "fallback": "🏠", "id": "6042137469204303531" },
+    "search": { "fallback": "🔎", "id": "5874960879434338403" },
+    "cancel_x": { "fallback": "✕", "id": "5967355281057779430" },
+    "refresh": { "fallback": "🔄", "id": "5877410604225924969" },
+
+    "_section_status": "── status / system messages ──────────────────",
+    "check": { "fallback": "✅", "id": "5776375003280838798" },
+    "cross": { "fallback": "❌", "id": "5778527486270770928" },
+    "warning": { "fallback": "⚠️", "id": "5881702736843511327" },
+    "info": { "fallback": "ℹ️", "id": "5879785854284599288" },
+    "lock": { "fallback": "🔒", "id": "5832546462478635761" },
+    "disabled": { "fallback": "🚫", "id": "5872829476143894491" },
+    "point_down": { "fallback": "👇", "id": "5231102735817918643" },
+    "wave": { "fallback": "👋", "id": "5994750571041525522" },
+    "sparkle": { "fallback": "✨", "id": "5890925363067886150" },
+    "fire": { "fallback": "🔥", "id": "6008104758236156926" },
+    "rocket": { "fallback": "🚀", "id": "5372917041193828849" },
+    "bell": { "fallback": "🔔", "id": "5909201569898827582" },
+
+    "_section_money": "── money / commerce ──────────────────────────",
+    "coin": { "fallback": "💰", "id": "5987880246865565644" },
+    "transfer": { "fallback": "💸", "id": "5902206159095339799" },
+    "withdraw": { "fallback": "🏧", "id": "5879814368572478751" },
+    "binance": { "fallback": "🟡", "id": "5285185333376325970" },
+    "upi": { "fallback": "🇮🇳", "id": "5807750375033278838" },
+    "cart": { "fallback": "🛍️", "id": "5456343263340405032" },
+
+    "_section_profile": "── profile / orders / api ────────────────────",
+    "stats": { "fallback": "📊", "id": "5936143551854285132" },
+    "orders": { "fallback": "📦", "id": "5924720918826848520" },
+    "calendar": { "fallback": "🗓️", "id": "5217604963571621845" },
+    "id": { "fallback": "🆔", "id": "5936017305585586269" },
+    "people": { "fallback": "👥", "id": "6032594876506312598" },
+    "api": { "fallback": "🔧", "id": "5258023599419171861" },
+    "link": { "fallback": "🔗", "id": "5877465816030515018" },
+    "speech": { "fallback": "💬", "id": "5884510167986343350" },
+    "clipboard": { "fallback": "📋", "id": "5203910550542631009" },
+
+    "_section_products": "── product emojis (set per-product with /setemoji slug ID) ──",
+    "product_briefcase": {
+      "fallback": "💼",
+      "id": "5454158271743012602",
+      "_used_for": "Linkedin Career"
+    },
+    "product_mouse": {
+      "fallback": "🖱️",
+      "id": "6284850172795035165",
+      "_used_for": "Cursor Pro"
+    },
+    "product_filing_cabinet": {
+      "fallback": "🗄️",
+      "id": "5145388580297770677",
+      "_used_for": "Supabase Pro"
+    },
+    "product_art_palette": {
+      "fallback": "🎨",
+      "id": "5418219621792625031",
+      "_used_for": "Canva Business"
+    },
+    "product_orange_square": {
+      "fallback": "🟧",
+      "id": "5098081469742451099",
+      "_used_for": "Replit Core"
+    },
+    "product_link": {
+      "fallback": "🔗",
+      "id": "5145863423292081993",
+      "_used_for": "n8n Starter"
+    },
+    "product_graduation": {
+      "fallback": "🎓",
+      "id": "5082727863602381620",
+      "_used_for": "Coursera Plus"
+    },
+    "product_notebook": {
+      "fallback": "📒",
+      "id": "5145660370123229301",
+      "_used_for": "Notion Business"
+    },
+    "product_studio_mic": {
+      "fallback": "🎙️",
+      "id": "6219689196722854904",
+      "_used_for": "ElevenLabs Creator (1m / 12m / Account)"
+    },
+    "product_robot": {
+      "fallback": "🤖",
+      "id": "5361629742585893404",
+      "_used_for": "Google AI Pro"
+    },
+    "product_speech": {
+      "fallback": "💬",
+      "id": "5163728460018878700",
+      "_used_for": "ChatPRD Pro"
+    },
+    "product_clapper": {
+      "fallback": "🎬",
+      "id": "5161563087832090412",
+      "_used_for": "Framer Pro"
+    },
+    "product_cyclone": {
+      "fallback": "🌀",
+      "id": "6334602442591700514",
+      "_used_for": "Granola Business"
+    },
+    "product_green_circle": {
+      "fallback": "🟢",
+      "id": "6037500137180245128",
+      "_used_for": "Gumloop Pro"
+    },
+    "product_thought_bubble": {
+      "fallback": "💭",
+      "id": "5163925843830900265",
+      "_used_for": "Intercom Advanced"
+    },
+    "product_ruler": {
+      "fallback": "📐",
+      "id": "5163611963325941107",
+      "_used_for": "Linear Business"
+    },
+    "product_sparkle": {
+      "fallback": "✨",
+      "id": "5163648041051228065",
+      "_used_for": "Magic Patterns"
+    },
+    "product_chart": {
+      "fallback": "📊",
+      "id": "5163705408929400281",
+      "_used_for": "PostHog Scale"
+    },
+    "product_lightning": {
+      "fallback": "⚡",
+      "id": "5163580124733376471",
+      "_used_for": "Warp Build"
+    }
+  }
+}

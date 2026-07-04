@@ -7,6 +7,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import os
 
 import uvicorn
 
@@ -17,10 +18,13 @@ from src.main import amain as run_bot
 async def run_dashboard() -> None:
     """Serve the FastAPI dashboard without starting another process."""
     settings = get_settings()
+    railway_port = os.getenv("PORT")
+    host = "0.0.0.0" if railway_port else settings.dashboard_host
+    port = int(railway_port) if railway_port else settings.dashboard_port
     config = uvicorn.Config(
         "src.admin_dashboard.server:app",
-        host=settings.dashboard_host,
-        port=settings.dashboard_port,
+        host=host,
+        port=port,
         log_level=settings.log_level.lower(),
         reload=False,
     )

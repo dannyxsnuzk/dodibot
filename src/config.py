@@ -36,16 +36,34 @@ class Settings(BaseSettings):
     payment_verify_wait_seconds: int = Field(60, alias="PAYMENT_VERIFY_WAIT_SECONDS")
     payment_verify_interval_seconds: int = Field(12, alias="PAYMENT_VERIFY_INTERVAL_SECONDS")
 
-    database_url: str = Field(
-    "sqlite+aiosqlite:///./data/bot.db", alias="DATABASE_URL"
-)
+     database_url: str = Field(
+        "sqlite+aiosqlite:///./data/bot.db",
+        alias="DATABASE_URL",
+    )
 
-@field_validator("database_url", mode="before")
-@classmethod
-def _fix_database_url(cls, v: str) -> str:
-    if isinstance(v, str) and v.startswith("postgresql://"):
-        return v.replace("postgresql://", "postgresql+asyncpg://", 1)
-    return v
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _fix_database_url(cls, v: str) -> str:
+        if isinstance(v, str) and v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
+
+    @field_validator("admin_ids", mode="before")
+    @classmethod
+    def _parse_admin_ids(cls, v):
+        if v is None or v == "":
+            return []
+
+        if isinstance(v, int):
+            return [v]
+
+        if isinstance(v, str):
+            return [int(x.strip()) for x in v.split(",") if x.strip()]
+
+        if isinstance(v, list):
+            return [int(x) for x in v]
+
+        return [int(v)]
 
     dashboard_host: str = Field("127.0.0.1", alias="DASHBOARD_HOST")
     dashboard_port: int = Field(8088, alias="DASHBOARD_PORT")

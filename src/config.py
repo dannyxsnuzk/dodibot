@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     payment_verify_wait_seconds: int = Field(60, alias="PAYMENT_VERIFY_WAIT_SECONDS")
     payment_verify_interval_seconds: int = Field(12, alias="PAYMENT_VERIFY_INTERVAL_SECONDS")
 
-     database_url: str = Field(
+    database_url: str = Field(
         "sqlite+aiosqlite:///./data/bot.db",
         alias="DATABASE_URL",
     )
@@ -83,26 +83,7 @@ class Settings(BaseSettings):
     # Coloured inline keyboard buttons (Bot API 9.4+ ``style`` field with
     # ``primary`` / ``success`` / ``danger``). Disable to fall back to the
     # client's default button colour everywhere.
-    button_styles_enabled: bool = Field(True, alias="BUTTON_STYLES_ENABLED")
-
-    @field_validator("admin_ids", mode="before")
-@classmethod
-def _parse_admin_ids(cls, v):
-    if v is None or v == "":
-        return []
-
-    if isinstance(v, int):
-        return [v]
-
-    if isinstance(v, str):
-        return [int(x.strip()) for x in v.split(",") if x.strip()]
-
-    if isinstance(v, list):
-        return [int(x) for x in v]
-
-    return [int(v)]
-
-    @property
+    button_styles_enabled: bool = Field(True, alias="BUTTON_STYLES_ENABLED")    @property
     def project_root(self) -> Path:
         return PROJECT_ROOT
 

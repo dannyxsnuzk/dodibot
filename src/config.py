@@ -20,30 +20,48 @@ class Settings(BaseSettings):
 
     bot_token: str = Field(..., alias="BOT_TOKEN")
     admin_ids: list[int] | int | str = Field(default_factory=list, alias="ADMIN_IDS")
-    # If empty, src.main fills this in from getMe() at startup so referral links
-    # always use the correct username.
     bot_username: str = Field("", alias="BOT_USERNAME")
 
     shop_name: str = Field("Dodi Store", alias="SHOP_NAME")
     support_username: str = Field("babaswiftbot", alias="SUPPORT_USERNAME")
+
     binance_uid: str = Field("", alias="BINANCE_UID")
     binance_api_key: str = Field("", alias="BINANCE_API_KEY")
     binance_secret_key: str = Field("", alias="BINANCE_SECRET_KEY")
-    binance_api_base_url: str = Field("https://api.binance.com", alias="BINANCE_API_BASE_URL")
-    payment_require_amount_match: bool = Field(True, alias="PAYMENT_REQUIRE_AMOUNT_MATCH")
-    payment_check_duplicate_txid: bool = Field(True, alias="PAYMENT_CHECK_DUPLICATE_TXID")
-    payment_lookback_hours: int = Field(72, alias="PAYMENT_LOOKBACK_HOURS")
-    payment_verify_wait_seconds: int = Field(60, alias="PAYMENT_VERIFY_WAIT_SECONDS")
-    payment_verify_interval_seconds: int = Field(12, alias="PAYMENT_VERIFY_INTERVAL_SECONDS")
+    binance_api_base_url: str = Field(
+        "https://api.binance.com",
+        alias="BINANCE_API_BASE_URL",
+    )
 
- database_url: str = Field(
+    payment_require_amount_match: bool = Field(
+        True,
+        alias="PAYMENT_REQUIRE_AMOUNT_MATCH",
+    )
+    payment_check_duplicate_txid: bool = Field(
+        True,
+        alias="PAYMENT_CHECK_DUPLICATE_TXID",
+    )
+    payment_lookback_hours: int = Field(
+        72,
+        alias="PAYMENT_LOOKBACK_HOURS",
+    )
+    payment_verify_wait_seconds: int = Field(
+        60,
+        alias="PAYMENT_VERIFY_WAIT_SECONDS",
+    )
+    payment_verify_interval_seconds: int = Field(
+        12,
+        alias="PAYMENT_VERIFY_INTERVAL_SECONDS",
+    )
+
+    database_url: str = Field(
         "sqlite+aiosqlite:///./data/bot.db",
         alias="DATABASE_URL",
     )
 
     @field_validator("database_url", mode="before")
     @classmethod
-    def _fix_database_url(cls, v: str) -> str:
+    def _fix_database_url(cls, v):
         if isinstance(v, str) and v.startswith("postgresql://"):
             return v.replace("postgresql://", "postgresql+asyncpg://", 1)
         return v
@@ -68,46 +86,25 @@ class Settings(BaseSettings):
     dashboard_host: str = Field("127.0.0.1", alias="DASHBOARD_HOST")
     dashboard_port: int = Field(8088, alias="DASHBOARD_PORT")
     dashboard_password: str = Field("change_me", alias="DASHBOARD_PASSWORD")
-    dashboard_session_secret: str = Field("change_me_session", alias="DASHBOARD_SESSION_SECRET")
+    dashboard_session_secret: str = Field(
+        "change_me_session",
+        alias="DASHBOARD_SESSION_SECRET",
+    )
 
     withdraw_min: Decimal = Field(Decimal("5"), alias="WITHDRAW_MIN")
     withdraw_max: Decimal = Field(Decimal("1000"), alias="WITHDRAW_MAX")
 
     log_level: str = Field("INFO", alias="LOG_LEVEL")
 
-    # Premium custom emojis on inline keyboard buttons (Bot API 9.4+).
-    # Requires the bot owner to hold a Telegram Premium subscription. When
-    # disabled the unicode fallback glyphs from premium_emojis.json are
-    # rendered inside button labels instead.
-    premium_button_icons: bool = Field(True, alias="PREMIUM_BUTTON_ICONS")
-    # Coloured inline keyboard buttons (Bot API 9.4+ ``style`` field with
-    # ``primary`` / ``success`` / ``danger``). Disable to fall back to the
-    # client's default button colour everywhere.
+    premium_button_icons: bool = Field(
+        True,
+        alias="PREMIUM_BUTTON_ICONS",
+    )
+
     button_styles_enabled: bool = Field(
-    True,
-    alias="BUTTON_STYLES_ENABLED",
-)
-
-@property
-def project_root(self) -> Path:
-    return PROJECT_ROOT
-
-    @field_validator("admin_ids", mode="before")
-@classmethod
-def _parse_admin_ids(cls, v):
-    if v is None or v == "":
-        return []
-
-    if isinstance(v, int):
-        return [v]
-
-    if isinstance(v, str):
-        return [int(x.strip()) for x in v.split(",") if x.strip()]
-
-    if isinstance(v, list):
-        return [int(x) for x in v]
-
-    return [int(v)]
+        True,
+        alias="BUTTON_STYLES_ENABLED",
+    )
 
     @property
     def project_root(self) -> Path:
@@ -120,5 +117,5 @@ _settings: Settings | None = None
 def get_settings() -> Settings:
     global _settings
     if _settings is None:
-        _settings = Settings()  # type: ignore[call-arg]
+        _settings = Settings()
     return _settings

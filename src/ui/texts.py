@@ -137,14 +137,15 @@ def binance_pay_instructions(
     binance_id: str,
 ) -> str:
     return (
-        "💡 You can send any amount — it will be added to your balance.\n"
-        "___________________\n"
-        "🏦 Binance Pay / Internal Transfer\n\n"
+        "🟡 <b>Binance Pay</b>\n\n"
+        "💡 You can send <b>any amount</b> — it will be added to your balance.\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "🏦 <b>Binance Pay / Internal Transfer</b>\n\n"
         "Binance ID:\n"
         f"<code>{_h(binance_id)}</code>\n"
-        "👆 Tap to copy\n"
-        "___________________\n"
-        "After sending, paste your Transaction Hash (TxID) or Order ID here and we'll verify it automatically."
+        "👆 <i>Tap to copy</i>\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "After sending, paste your Transaction Hash <b>(TxID)</b> or Order ID here and we'll verify it <b>automatically</b>."
     )
 
 
@@ -157,14 +158,15 @@ def bep20_payment_instructions(
     wallet_address: str,
 ) -> str:
     return (
-        "💡 You can send any amount — it will be added to your balance.\n"
-        "___________________\n"
-        "🪙 USDT (BEP20 - BSC)\n\n"
+        "🟢 <b>USDT (BEP20 - BSC)</b>\n\n"
+        "💡 You can send <b>any amount</b> — it will be added to your balance.\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "🪙 <b>USDT (BEP20 - BSC)</b>\n\n"
         "Wallet Address:\n"
         f"<code>{_h(wallet_address)}</code>\n"
-        "👆 Tap to copy\n"
-        "___________________\n"
-        "After sending, paste your Transaction Hash (TxID) or Order ID here and we'll verify it automatically."
+        "👆 <i>Tap to copy</i>\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "After sending, paste your Transaction Hash <b>(TxID)</b> or Order ID here and we'll verify it <b>automatically</b>."
     )
 
 

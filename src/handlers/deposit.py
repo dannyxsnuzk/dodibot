@@ -4,12 +4,10 @@ from __future__ import annotations
 import contextlib
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
-from io import BytesIO
 
-import qrcode
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import BufferedInputFile, CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..repositories import deposits as deposits_repo
@@ -73,13 +71,14 @@ async def binance_start(
         session=session,
         text=(
             "🟡 <b>Binance Pay</b>\n\n"
-            "Binance UID:\n"
-            f"<code>{_html(settings.binance_uid)}</code>\n\n"
-            "1. Send USDT to the Binance UID above.\n"
-            "2. Keep the completed payment Order ID.\n"
-            "3. Enter the exact deposit amount below.\n\n"
-            f"Minimum: <b>{settings.minimum} USDT</b>\n"
-            f"Maximum: <b>{settings.maximum} USDT</b>\n\n"
+            "💡 You can send <b>any amount</b> — it will be added to your balance.\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "🏦 <b>Binance Pay / Internal Transfer</b>\n\n"
+            "Binance ID:\n"
+            f"<code>{_html(settings.binance_uid)}</code>\n"
+            "👆 <i>Tap to copy</i>\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "After sending, paste your Transaction Hash <b>(TxID)</b> or Order ID here and we'll verify it <b>automatically</b>.\n\n"
             "<b>Enter Deposit Amount</b>"
         ),
         keyboard=kb.deposit_cancel_kb(),
@@ -281,25 +280,19 @@ async def bep20_start(
         cb,
         session=session,
         text=(
-            "🟠 <b>BEP20 Deposit (USDT)</b>\n\n"
-            "Network: <b>BEP20</b>\n\n"
+            "🟢 <b>USDT (BEP20 - BSC)</b>\n\n"
+            "💡 You can send <b>any amount</b> — it will be added to your balance.\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "🪙 <b>USDT (BEP20 - BSC)</b>\n\n"
             "Wallet Address:\n"
-            f"<code>{_html(settings.bep20_wallet_address)}</code>\n\n"
-            f"Minimum: <b>{settings.minimum} USDT</b>\n"
-            f"Maximum: <b>{settings.maximum} USDT</b>\n"
-            f"Confirmations required: <b>{settings.required_confirmations}</b>\n\n"
-        "Send only USDT on BEP20.\n\n<b>Enter amount</b>"
+            f"<code>{_html(settings.bep20_wallet_address)}</code>\n"
+            "👆 <i>Tap to copy</i>\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            "After sending, paste your Transaction Hash <b>(TxID)</b> or Order ID here and we'll verify it <b>automatically</b>.\n\n"
+            "<b>Enter amount</b>"
         ),
         keyboard=kb.deposit_cancel_kb(),
     )
-    image = qrcode.make(settings.bep20_wallet_address)
-    output = BytesIO()
-    image.save(output, format="PNG")
-    if cb.message is not None:
-        await cb.message.answer_photo(
-            BufferedInputFile(output.getvalue(), filename="bep20-usdt.png"),
-            caption="Scan to copy the BEP20 wallet address.",
-        )
     await cb.answer()
 
 

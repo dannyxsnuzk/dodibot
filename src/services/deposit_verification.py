@@ -205,15 +205,25 @@ async def query_binance_pay_transaction(
         ) from exc
     if response.status >= 400 or not isinstance(payload, dict):
         detail = payload.get("msg") if isinstance(payload, dict) else None
+        detail_text = str(detail or "Binance Pay history request failed.")
+        if "restricted location" in detail_text.lower():
+            raise DepositVerificationError(
+                "restricted_location",
+                "Binance API is unavailable from the bot server region. "
+                "Please contact support for review.",
+            )
         raise DepositVerificationError(
-            "provider_error", str(detail or "Binance Pay history request failed.")
+            "provider_error", detail_text
         )
     if not payload.get("success") or str(payload.get("code")) != "000000":
         raise DepositVerificationError(
             "provider_error", str(payload.get("message") or "Binance Pay history request failed.")
         )
     for row in payload.get("data") or []:
-        if not isinstance(row, dict) or str(row.get("transactionId")) != cleaned:
+        if not isinstance(row, dict) or cleaned not in {
+            str(row.get("transactionId") or ""),
+            str(row.get("orderId") or ""),
+        }:
             continue
         amount = _decimal(row.get("amount"))
         if amount <= 0:

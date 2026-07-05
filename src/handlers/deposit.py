@@ -499,22 +499,12 @@ async def _query_binance_reference(
     if method == "binance_uid":
         return await query_binance_pay_transaction(reference, settings)
     if method == "binance_order_id":
-        return await query_binance_pay_order(reference, settings)
+        return await query_binance_pay_transaction(reference, settings)
 
-    first_error: DepositVerificationError | None = None
     if settings.uid_enabled:
-        try:
-            return await query_binance_pay_transaction(reference, settings)
-        except DepositVerificationError as exc:
-            first_error = exc
+        return await query_binance_pay_transaction(reference, settings)
     if settings.order_id_enabled:
-        try:
-            return await query_binance_pay_order(reference, settings)
-        except DepositVerificationError as exc:
-            if first_error is None:
-                first_error = exc
-    if first_error is not None:
-        raise first_error
+        return await query_binance_pay_transaction(reference, settings)
     raise DepositVerificationError("not_configured", "Binance verification is disabled.")
 
 

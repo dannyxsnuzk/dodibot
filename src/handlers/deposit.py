@@ -20,6 +20,7 @@ from ..services.deposit_verification import (
     verify_bep20_tx,
 )
 from ..services.payment_flow import (
+    bep20_reference_error,
     detect_reference_provider,
     is_plausible_reference,
     payment_instructions,
@@ -354,6 +355,10 @@ async def bep20_txid(
     message: Message, session: AsyncSession, state: FSMContext
 ) -> None:
     reference = (message.text or "").strip()
+    reference_error = bep20_reference_error(reference)
+    if reference_error:
+        await message.answer(reference_error)
+        return
     submitted_provider = detect_reference_provider(reference)
     if submitted_provider is None:
         await message.answer(

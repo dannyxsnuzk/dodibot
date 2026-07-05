@@ -244,7 +244,7 @@ async def query_binance_pay_transaction(
 
 async def verify_bep20_tx(
     txid: str,
-    expected_amount: Decimal,
+    expected_amount: Decimal | None,
     settings: DepositSettings,
 ) -> Bep20Match:
     cleaned = txid.strip().lower()
@@ -296,7 +296,7 @@ async def verify_bep20_tx(
         raise DepositVerificationError(
             "wrong_recipient", "No USDT transfer to the configured wallet was found."
         )
-    if amount != expected_amount:
+    if expected_amount is not None and amount != expected_amount:
         raise DepositVerificationError(
             "wrong_amount", f"Expected {expected_amount} USDT, received {amount} USDT."
         )

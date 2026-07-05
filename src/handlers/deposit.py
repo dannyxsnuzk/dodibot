@@ -65,7 +65,8 @@ async def binance_start(
         await cb.answer("Binance UID is not configured.", show_alert=True)
         return
     await state.clear()
-    await state.set_state(DepositStates.waiting_binance_amount)
+    await state.update_data(verification_method="auto_binance")
+    await state.set_state(DepositStates.waiting_uid_order_id)
     await render_from_callback(
         cb,
         session=session,
@@ -78,8 +79,7 @@ async def binance_start(
             f"<code>{_html(settings.binance_uid)}</code>\n"
             "👆 <i>Tap to copy</i>\n\n"
             "━━━━━━━━━━━━━━━━━━━━\n\n"
-            "After sending, paste your Transaction Hash <b>(TxID)</b> or Order ID here and we'll verify it <b>automatically</b>.\n\n"
-            "<b>Enter Deposit Amount</b>"
+            "After sending, paste your Transaction Hash <b>(TxID)</b> or Order ID here and we'll verify it <b>automatically</b>."
         ),
         keyboard=kb.deposit_cancel_kb(),
     )
@@ -196,20 +196,22 @@ async def binance_order_input(
     reference = (message.text or "").strip()
     data = await state.get_data()
     method = str(data.get("verification_method") or "")
-    try:
-        expected_amount = Decimal(str(data.get("expected_amount")))
-    except (InvalidOperation, ValueError):
-        await state.clear()
-        await message.answer("Deposit session expired. Please start again.")
-        return
-    if method not in {"binance_uid", "binance_order_id"}:
+    expected_amount: Decimal | None = None
+    if data.get("expected_amount") is not None:
+        try:
+            expected_amount = Decimal(str(data.get("expected_amount")))
+        except (InvalidOperation, ValueError):
+            await state.clear()
+            await message.answer("Deposit session expired. Please start again.")
+            return
+    if method not in {"auto_binance", "binance_uid", "binance_order_id"}:
         await state.clear()
         await message.answer("Deposit session expired. Please start again.")
         return
     order = await deposits_repo.create_deposit(
         session,
         user_id=message.from_user.id,
-        method=method,
+        method="binance_uid" if method == "auto_binance" else method,
         expected_amount=expected_amount,
     )
     await _render_for_message(message, session, "⏳ <b>Verifying Payment...</b>")
@@ -230,10 +232,7 @@ async def binance_order_input(
         return
     settings = await get_deposit_settings(session)
     try:
-        if order.method == "binance_uid":
-            match = await query_binance_pay_transaction(reference, settings)
-        else:
-            match = await query_binance_pay_order(reference, settings)
+        match = await _query_binance_reference(reference, method, settings)
         _validate_binance_match(order, match.amount, match.paid_at, settings)
         balance = await deposits_repo.finalize_binance(
             session, order, submitted_order_id=reference, match=match
@@ -275,7 +274,7 @@ async def bep20_start(
         await cb.answer("BEP20 wallet is not configured.", show_alert=True)
         return
     await state.clear()
-    await state.set_state(DepositStates.waiting_bep20_amount)
+    await state.set_state(DepositStates.waiting_bep20_txid)
     await render_from_callback(
         cb,
         session=session,
@@ -288,8 +287,7 @@ async def bep20_start(
             f"<code>{_html(settings.bep20_wallet_address)}</code>\n"
             "👆 <i>Tap to copy</i>\n\n"
             "━━━━━━━━━━━━━━━━━━━━\n\n"
-            "After sending, paste your Transaction Hash <b>(TxID)</b> or Order ID here and we'll verify it <b>automatically</b>.\n\n"
-            "<b>Enter amount</b>"
+            "After sending, paste your Transaction Hash <b>(TxID)</b> here and we'll verify it <b>automatically</b>."
         ),
         keyboard=kb.deposit_cancel_kb(),
     )
@@ -325,13 +323,22 @@ async def bep20_txid(
 ) -> None:
     reference = (message.text or "").strip().lower()
     data = await state.get_data()
-    order = await deposits_repo.get_deposit(
-        session, int(data.get("deposit_id", 0)), message.from_user.id
-    )
-    if order is None or order.expected_amount is None:
-        await state.clear()
-        await message.answer("Deposit session expired. Please start again.")
-        return
+    deposit_id = data.get("deposit_id")
+    if deposit_id:
+        order = await deposits_repo.get_deposit(
+            session, int(deposit_id), message.from_user.id
+        )
+        if order is None:
+            await state.clear()
+            await message.answer("Deposit session expired. Please start again.")
+            return
+    else:
+        order = await deposits_repo.create_deposit(
+            session,
+            user_id=message.from_user.id,
+            method="bep20",
+            expected_amount=None,
+        )
     await _render_for_message(message, session, "⏳ <b>Verifying Payment...</b>")
     await _delete_user_message(message)
     if await deposits_repo.reference_is_used(
@@ -349,9 +356,13 @@ async def bep20_txid(
         return
     settings = await get_deposit_settings(session)
     try:
-        match = await verify_bep20_tx(
-            reference, Decimal(str(order.expected_amount)), settings
+        expected_amount = (
+            Decimal(str(order.expected_amount))
+            if order.expected_amount is not None
+            else None
         )
+        match = await verify_bep20_tx(reference, expected_amount, settings)
+        _validate_deposit_amount(match.amount, settings)
         balance = await deposits_repo.finalize_bep20(session, order, match=match)
     except deposits_repo.DepositAlreadyUsed:
         await _finish_error(message, session, state, "❌ <b>Already Used</b>")
@@ -400,10 +411,7 @@ async def _parse_amount(
 def _validate_binance_match(
     order, amount: Decimal, paid_at: datetime, settings: DepositSettings
 ) -> None:
-    if amount < settings.minimum or amount > settings.maximum:
-        raise DepositVerificationError(
-            "wrong_amount", "Deposit amount is outside the configured limits."
-        )
+    _validate_deposit_amount(amount, settings)
     if order.expected_amount is not None and amount != Decimal(str(order.expected_amount)):
         raise DepositVerificationError("wrong_amount", "The deposited amount does not match.")
     now = datetime.now(timezone.utc)
@@ -414,6 +422,40 @@ def _validate_binance_match(
         raise DepositVerificationError(
             "expired", "The deposit is outside the allowed verification window."
         )
+
+
+def _validate_deposit_amount(amount: Decimal, settings: DepositSettings) -> None:
+    if amount < settings.minimum or amount > settings.maximum:
+        raise DepositVerificationError(
+            "wrong_amount", "Deposit amount is outside the configured limits."
+        )
+
+
+async def _query_binance_reference(
+    reference: str,
+    method: str,
+    settings: DepositSettings,
+):
+    if method == "binance_uid":
+        return await query_binance_pay_transaction(reference, settings)
+    if method == "binance_order_id":
+        return await query_binance_pay_order(reference, settings)
+
+    first_error: DepositVerificationError | None = None
+    if settings.uid_enabled:
+        try:
+            return await query_binance_pay_transaction(reference, settings)
+        except DepositVerificationError as exc:
+            first_error = exc
+    if settings.order_id_enabled:
+        try:
+            return await query_binance_pay_order(reference, settings)
+        except DepositVerificationError as exc:
+            if first_error is None:
+                first_error = exc
+    if first_error is not None:
+        raise first_error
+    raise DepositVerificationError("not_configured", "Binance verification is disabled.")
 
 
 async def _render_for_message(

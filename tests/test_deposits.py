@@ -19,10 +19,17 @@ from src.services.deposit_verification import (
     BinanceOrderMatch,
     verify_bep20_tx,
 )
+from src.services.payment_flow import detect_reference_provider
 from src.ui import keyboards
 
 
 class DepositTests(unittest.IsolatedAsyncioTestCase):
+    def test_reference_provider_detection(self) -> None:
+        self.assertEqual(detect_reference_provider("0x" + "ab" * 32), "bep20")
+        self.assertEqual(detect_reference_provider("1234567890123456"), "binance_pay")
+        self.assertEqual(detect_reference_provider("P_ABCDEF123456"), "binance_pay")
+        self.assertIsNone(detect_reference_provider("not-a-transaction"))
+
     async def asyncSetUp(self) -> None:
         self.engine = create_async_engine("sqlite+aiosqlite:///:memory:")
         async with self.engine.begin() as connection:

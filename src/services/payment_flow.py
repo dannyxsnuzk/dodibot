@@ -51,6 +51,16 @@ def is_plausible_reference(provider: str, reference: str) -> bool:
     )
 
 
+def detect_reference_provider(reference: str) -> str | None:
+    """Choose BSC only for a canonical 0x hash; otherwise try Binance IDs."""
+    value = reference.strip()
+    if _ETH_TX_RE.fullmatch(value):
+        return "bep20"
+    if is_plausible_reference("binance_pay", value):
+        return "binance_pay"
+    return None
+
+
 async def verify_reference(provider: str, reference: str, target: VerificationTarget) -> bool:
     if provider == "bep20":
         return await verify_bep20_payment(reference, target)

@@ -20,6 +20,7 @@ from ..services.deposit_verification import (
     verify_bep20_tx,
 )
 from ..services.payment_flow import (
+    detect_reference_provider,
     is_plausible_reference,
     payment_instructions,
     retry_operation,
@@ -352,10 +353,15 @@ async def bep20_amount(
 async def bep20_txid(
     message: Message, session: AsyncSession, state: FSMContext
 ) -> None:
-    reference = (message.text or "").strip().lower()
-    if not is_plausible_reference("bep20", reference):
-        await message.answer("Please send a valid BEP20 transaction hash.")
+    reference = (message.text or "").strip()
+    submitted_provider = detect_reference_provider(reference)
+    if submitted_provider is None:
+        await message.answer(
+            "Please send a valid BEP20 transaction hash, Binance TxID, or Order ID."
+        )
         return
+    if submitted_provider == "bep20":
+        reference = reference.lower()
     data = await state.get_data()
     deposit_id = data.get("deposit_id")
     if deposit_id:
@@ -375,8 +381,9 @@ async def bep20_txid(
         )
     await _render_for_message(message, session, "⏳ <b>Verifying Payment...</b>")
     await _delete_user_message(message)
+    duplicate_method = "bep20" if submitted_provider == "bep20" else "binance_uid"
     if await deposits_repo.reference_is_used(
-        session, method="bep20", reference=reference
+        session, method=duplicate_method, reference=reference
     ):
         await deposits_repo.reject_deposit(
             session,
@@ -384,7 +391,7 @@ async def bep20_txid(
             reference=reference,
             code="already_used",
             detail="TXID was already credited.",
-            provider="bsc",
+            provider="bsc" if submitted_provider == "bep20" else "binance_pay",
         )
         await _finish_error(message, session, state, "❌ <b>Already Used</b>")
         return
@@ -395,15 +402,28 @@ async def bep20_txid(
             if order.expected_amount is not None
             else None
         )
-        match = await run_with_progress(
-            reference,
-            retry_operation(
-                lambda: verify_bep20_tx(reference, expected_amount, settings)
-            ),
-            lambda text: _render_for_message(message, session, text),
-        )
-        _validate_deposit_amount(match.amount, settings)
-        balance = await deposits_repo.finalize_bep20(session, order, match=match)
+        if submitted_provider == "bep20":
+            match = await run_with_progress(
+                reference,
+                retry_operation(
+                    lambda: verify_bep20_tx(reference, expected_amount, settings)
+                ),
+                lambda text: _render_for_message(message, session, text),
+            )
+            _validate_deposit_amount(match.amount, settings)
+            balance = await deposits_repo.finalize_bep20(session, order, match=match)
+        else:
+            match = await run_with_progress(
+                reference,
+                retry_operation(
+                    lambda: _query_binance_reference(reference, "auto_binance", settings)
+                ),
+                lambda text: _render_for_message(message, session, text),
+            )
+            _validate_binance_match(order, match.amount, match.paid_at, settings)
+            balance = await deposits_repo.finalize_binance(
+                session, order, submitted_order_id=reference, match=match
+            )
     except deposits_repo.DepositAlreadyUsed:
         await _finish_error(message, session, state, "❌ <b>Already Used</b>")
         return
@@ -414,7 +434,7 @@ async def bep20_txid(
             reference=reference,
             code=exc.code,
             detail=exc.detail,
-            provider="bsc",
+            provider="bsc" if submitted_provider == "bep20" else "binance_pay",
         )
         await _finish_error(message, session, state, _error_text(exc))
         return

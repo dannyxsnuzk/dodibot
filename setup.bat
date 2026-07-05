@@ -1,11 +1,11 @@
 @echo off
 setlocal
-title Dodi Store Bot setup
+title Batman Bot setup
 cd /d "%~dp0"
 
 echo.
 echo ====================================================================
-echo  Dodi Store BOT - first-time setup
+echo  BATMAN BOT - first-time setup
 echo ====================================================================
 echo.
 

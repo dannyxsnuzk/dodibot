@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Login · Dodi Store Admin</title>
+  <title>Login · Batman Admin</title>
   <style>
     body { background: #0e1116; color: #e6edf3; font-family: system-ui;
       display: grid; place-items: center; height: 100vh; margin: 0; }
@@ -15,14 +15,16 @@
     button { width: 100%; margin-top: 12px; background: #2ea043; color: white;
       border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-size: 14px; }
     .err { color: #ff7b72; font-size: 13px; margin-top: 8px; }
+    .brand-footer { color: #8b949e; font-size: 12px; text-align: center; margin-top: 14px; }
   </style>
 </head>
 <body>
   <form method="post" action="/login">
-    <h1>🛍️ Dodi Store Admin</h1>
+    <h1>🦇 Batman Admin</h1>
     <input type="password" name="password" placeholder="Dashboard password" autofocus required />
     <button type="submit">Sign in</button>
     {% if error %}<div class="err">Invalid password.</div>{% endif %}
+    <div class="brand-footer">Batman Store · Support @pvtbatman</div>
   </form>
 </body>
 </html>

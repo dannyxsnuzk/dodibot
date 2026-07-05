@@ -1,6 +1,6 @@
 @echo off
 setlocal
-title Dodi Store Bot
+title Batman Bot
 cd /d "%~dp0"
 
 if not exist .venv\Scripts\python.exe (

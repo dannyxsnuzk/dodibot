@@ -1,8 +1,10 @@
-# Dodi Store Bot
+# Batman Bot
 
-A Telegram shop bot for digital products: product catalog, stock delivery,
+Batman Store is a Telegram shop bot for digital products: product catalog, stock delivery,
 Binance payment verification, referrals, withdrawals, admin commands, and a
 FastAPI dashboard.
+
+Author: Batman · Support: [@pvtbatman](https://t.me/pvtbatman)
 
 ## Stack
 
@@ -15,7 +17,7 @@ FastAPI dashboard.
 ## Quick Start
 
 ```sh
-cd baba-swift-bot
+cd batman-bot
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt

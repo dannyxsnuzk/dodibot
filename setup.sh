@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Dodi Store Bot - first-time setup for macOS / Linux.
+# Batman Bot - first-time setup for macOS / Linux.
 set -e
 cd "$(dirname "$0")"
 
 echo
 echo "===================================================================="
-echo " Dodi Store BOT - first-time setup"
+echo " BATMAN BOT - first-time setup"
 echo "===================================================================="
 echo
 

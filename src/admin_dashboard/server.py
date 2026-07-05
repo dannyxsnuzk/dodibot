@@ -18,12 +18,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import get_settings
 from ..db.models import (
     ApiToken,
+    DepositOrder,
     Order,
     PaymentVerification,
     Product,
     StockItem,
     Transaction,
     User,
+    VerificationLog,
     Withdrawal,
 )
 from ..repositories import payments as payments_repo
@@ -32,19 +34,20 @@ from ..repositories import products as products_repo
 from ..repositories import withdrawals as wd_repo
 from ..services.shop import BuyError, OutOfStock, buy_product_quantity
 from ..services import wallet
+from ..services.deposit_settings import get_deposit_settings, update_deposit_settings
 
 log = logging.getLogger("dashboard")
 
 settings = get_settings()
 ROOT = Path(__file__).parent
 templates = Jinja2Templates(directory=str(ROOT / "templates"))
-serializer = URLSafeSerializer(settings.dashboard_session_secret, salt="baba-swift-bot")
+serializer = URLSafeSerializer(settings.dashboard_session_secret, salt="batman-bot")
 
 PASSWORD_HASH = bcrypt.hashpw(
     settings.dashboard_password.encode("utf-8"), bcrypt.gensalt()
 )
 
-app = FastAPI(title="Dodi Store Admin", docs_url=None, redoc_url=None)
+app = FastAPI(title="Batman Admin", docs_url=None, redoc_url=None)
 
 
 # ───────── auth ─────────────────────────────────────────────────────────────
@@ -479,3 +482,97 @@ async def payments_reject(
         return RedirectResponse("/payments?flash=already_delivered", status_code=303)
     await payments_repo.mark_rejected(db, payment, status="manual_rejected", note=note, decided_by=0)
     return RedirectResponse("/payments?flash=rejected", status_code=303)
+
+
+# ----- Deposit settings ----------
+
+@app.get("/deposit-settings", response_class=HTMLResponse)
+async def deposit_settings_page(
+    request: Request,
+    saved: int | None = None,
+    error: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(require_auth),
+) -> HTMLResponse:
+    config = await get_deposit_settings(db)
+    deposits = (await db.scalars(
+        select(DepositOrder).order_by(desc(DepositOrder.id)).limit(100)
+    )).all()
+    logs = (await db.scalars(
+        select(VerificationLog).order_by(desc(VerificationLog.id)).limit(100)
+    )).all()
+    return templates.TemplateResponse(request, "deposit_settings.html", {
+        "config": config,
+        "deposits": deposits,
+        "logs": logs,
+        "saved": saved,
+        "error": error,
+        "api_key_hint": (
+            f"{config.binance_api_key[:4]}…{config.binance_api_key[-4:]}"
+            if len(config.binance_api_key) >= 10 else ("configured" if config.binance_api_key else "")
+        ),
+        "merchant_key_hint": (
+            f"{config.binance_pay_api_key[:4]}…{config.binance_pay_api_key[-4:]}"
+            if len(config.binance_pay_api_key) >= 10 else (
+                "configured" if config.binance_pay_api_key else ""
+            )
+        ),
+    })
+
+
+@app.post("/deposit-settings")
+async def deposit_settings_save(
+    binance_uid: str = Form(""),
+    binance_api_key: str = Form(""),
+    binance_secret: str = Form(""),
+    binance_pay_api_key: str = Form(""),
+    binance_pay_secret: str = Form(""),
+    bep20_wallet_address: str = Form(""),
+    minimum: str = Form(...),
+    maximum: str = Form(...),
+    required_confirmations: int = Form(...),
+    allowed_window_minutes: int = Form(...),
+    uid_enabled: str | None = Form(None),
+    order_id_enabled: str | None = Form(None),
+    bep20_enabled: str | None = Form(None),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(require_auth),
+) -> Response:
+    current = await get_deposit_settings(db)
+    try:
+        min_amount = Decimal(minimum)
+        max_amount = Decimal(maximum)
+    except InvalidOperation:
+        return RedirectResponse("/deposit-settings?error=amount", status_code=303)
+    if min_amount <= 0 or max_amount < min_amount:
+        return RedirectResponse("/deposit-settings?error=range", status_code=303)
+    if required_confirmations < 1 or required_confirmations > 1000:
+        return RedirectResponse("/deposit-settings?error=confirmations", status_code=303)
+    if allowed_window_minutes < 1 or allowed_window_minutes > 43200:
+        return RedirectResponse("/deposit-settings?error=window", status_code=303)
+    wallet_address = bep20_wallet_address.strip()
+    if wallet_address and (
+        len(wallet_address) != 42 or not wallet_address.startswith("0x")
+    ):
+        return RedirectResponse("/deposit-settings?error=wallet", status_code=303)
+
+    await update_deposit_settings(db, {
+        "binance_uid": binance_uid.strip(),
+        "binance_api_key": binance_api_key.strip() or current.binance_api_key,
+        "binance_secret": binance_secret.strip() or current.binance_secret,
+        "binance_pay_api_key": (
+            binance_pay_api_key.strip() or current.binance_pay_api_key
+        ),
+        "binance_pay_secret": (
+            binance_pay_secret.strip() or current.binance_pay_secret
+        ),
+        "bep20_wallet_address": wallet_address,
+        "minimum": str(min_amount),
+        "maximum": str(max_amount),
+        "required_confirmations": str(required_confirmations),
+        "allowed_window_minutes": str(allowed_window_minutes),
+        "uid_enabled": str(uid_enabled is not None).lower(),
+        "order_id_enabled": str(order_id_enabled is not None).lower(),
+        "bep20_enabled": str(bep20_enabled is not None).lower(),
+    })
+    return RedirectResponse("/deposit-settings?saved=1", status_code=303)

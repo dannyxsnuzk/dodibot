@@ -37,6 +37,10 @@ CB_MY_ORDERS = "my_orders"
 CB_PROFILE = "profile"
 CB_SUPPORT = "support"
 CB_REFER = "refer"
+CB_DEPOSIT = "deposit"
+CB_DEPOSIT_UID = "dep:uid"
+CB_DEPOSIT_ORDER = "dep:order"
+CB_DEPOSIT_BEP20 = "dep:bep20"
 
 CB_REFRESH_SHOP = "shop:refresh"
 CB_PRODUCT = "shop:p"           # shop:p:<id>
@@ -146,6 +150,7 @@ def home_button() -> InlineKeyboardButton:
 def main_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            _row(btn("💰 Deposit", style="success", callback_data=CB_DEPOSIT)),
             _row(btn("🛍️ Shop", style="primary", callback_data=CB_SHOP)),
             _row(
                 btn("👤 My Profile", style="success", callback_data=CB_PROFILE),
@@ -154,6 +159,37 @@ def main_menu_kb() -> InlineKeyboardMarkup:
             _row(btn("🆘 Support", style="success", callback_data=CB_SUPPORT)),
             _row(btn("⭐ Refer & Earn", style="success", callback_data=CB_REFER)),
         ]
+    )
+
+
+def deposit_methods_kb(
+    *,
+    uid_enabled: bool,
+    order_id_enabled: bool,
+    bep20_enabled: bool,
+) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if uid_enabled:
+        rows.append(_row(btn(
+            "🟡 Binance Pay (UID)", style="primary", callback_data=CB_DEPOSIT_UID
+        )))
+    if order_id_enabled:
+        rows.append(_row(btn(
+            "🟢 Binance Pay (Order ID)", style="primary", callback_data=CB_DEPOSIT_ORDER
+        )))
+    if bep20_enabled:
+        rows.append(_row(btn(
+            "🟠 BEP20 (USDT)", style="primary", callback_data=CB_DEPOSIT_BEP20
+        )))
+    rows.append(_row(btn("🔙 Back", style="success", callback_data=CB_MAIN)))
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def deposit_cancel_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[_row(btn(
+            "🔙 Back", style="success", callback_data=CB_DEPOSIT
+        ))]
     )
 
 

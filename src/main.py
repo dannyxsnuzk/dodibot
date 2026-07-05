@@ -18,6 +18,7 @@ from .config import get_settings
 from .db.seed import seed_products
 from .db.session import SessionLocal, init_db
 from .handlers import admin as admin_handler
+from .handlers import deposit as deposit_handler
 from .handlers import profile as profile_handler
 from .handlers import refer as refer_handler
 from .handlers import shop as shop_handler
@@ -82,6 +83,7 @@ async def amain() -> None:
 
     dp.include_router(admin_handler.router)  # before start so admin commands take priority
     dp.include_router(start_handler.router)
+    dp.include_router(deposit_handler.router)
     dp.include_router(shop_handler.router)
     dp.include_router(profile_handler.router)
     dp.include_router(support_handler.router)

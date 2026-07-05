@@ -1,4 +1,4 @@
-# Runtime dependencies for Dodi Store Bot.
+# Runtime dependencies for Batman Bot.
 # Install with: pip install -r requirements.txt
 
 aiogram>=3.13,<4

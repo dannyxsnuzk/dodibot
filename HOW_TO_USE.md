@@ -1,4 +1,4 @@
-# Dodi Store Bot - Owner / Admin Manual
+# Batman Bot - Owner / Admin Manual
 
 This guide matches the current build: product browsing, instant stock delivery,
 withdrawals, referrals, admin commands, and the local dashboard. Payment handling
@@ -19,8 +19,8 @@ Edit `.env`:
 BOT_TOKEN=your_botfather_token
 ADMIN_IDS=your_telegram_user_id
 BOT_USERNAME=
-SHOP_NAME=Dodi Store
-SUPPORT_USERNAME=your_support_username
+SHOP_NAME=Batman Store
+SUPPORT_USERNAME=pvtbatman
 DASHBOARD_PASSWORD=change_this
 DASHBOARD_SESSION_SECRET=change_this_too
 ```

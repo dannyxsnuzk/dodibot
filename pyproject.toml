@@ -1,7 +1,8 @@
 [project]
-name = "baba-swift-bot"
+name = "batman-bot"
 version = "0.1.0"
-description = "Telegram shop bot with single-message UX, premium emojis, wallet, referrals and admin dashboard."
+description = "Batman Bot Telegram store with premium UX, wallet, referrals and admin dashboard."
+authors = [{ name = "Batman" }]
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

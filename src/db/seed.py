@@ -1,4 +1,4 @@
-"""Seed initial product list (taken from the Dodi Store screenshots)."""
+"""Seed the initial Batman Store product list."""
 from __future__ import annotations
 
 from decimal import Decimal

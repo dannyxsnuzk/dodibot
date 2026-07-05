@@ -1,4 +1,4 @@
-"""SQLAlchemy models. Schema mirrors the plan in baba_swift_bot_plan.md."""
+"""SQLAlchemy models for Batman Bot."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -125,6 +125,105 @@ class Transaction(Base):
     amount_usdt: Mapped[Decimal] = mapped_column(NUMERIC)
     ref_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DepositOrder(Base):
+    """A user wallet top-up attempt, independent from shop purchases."""
+
+    __tablename__ = "deposit_orders"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), index=True)
+    method: Mapped[str] = mapped_column(String(24), index=True)
+    expected_amount: Mapped[Optional[Decimal]] = mapped_column(NUMERIC, nullable=True)
+    received_amount: Mapped[Optional[Decimal]] = mapped_column(NUMERIC, nullable=True)
+    currency: Mapped[str] = mapped_column(String(12), default="USDT")
+    reference: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    external_transaction_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    rejection_code: Mapped[str] = mapped_column(String(40), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class BinanceOrder(Base):
+    __tablename__ = "binance_orders"
+    __table_args__ = (
+        UniqueConstraint("order_id", name="uq_binance_orders_order_id"),
+        UniqueConstraint("transaction_id", name="uq_binance_orders_transaction_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    deposit_order_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("deposit_orders.id"), unique=True
+    )
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), index=True)
+    order_id: Mapped[str] = mapped_column(String(128))
+    transaction_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    amount: Mapped[Decimal] = mapped_column(NUMERIC)
+    currency: Mapped[str] = mapped_column(String(12))
+    status: Mapped[str] = mapped_column(String(24))
+    paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    raw_response: Mapped[str] = mapped_column(Text, default="")
+    verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class TxidVerification(Base):
+    __tablename__ = "txid_verifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    deposit_order_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("deposit_orders.id"), unique=True
+    )
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), index=True)
+    txid: Mapped[str] = mapped_column(String(128), unique=True)
+    block_number: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    confirmations: Mapped[int] = mapped_column(Integer, default=0)
+    from_address: Mapped[str] = mapped_column(String(64), default="")
+    to_address: Mapped[str] = mapped_column(String(64), default="")
+    token_address: Mapped[str] = mapped_column(String(64), default="")
+    amount: Mapped[Decimal] = mapped_column(NUMERIC)
+    currency: Mapped[str] = mapped_column(String(12), default="USDT")
+    status: Mapped[str] = mapped_column(String(24))
+    raw_response: Mapped[str] = mapped_column(Text, default="")
+    verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WalletTransaction(Base):
+    """Idempotency ledger for wallet mutations made by the deposit subsystem."""
+
+    __tablename__ = "wallet_transactions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), index=True)
+    deposit_order_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("deposit_orders.id"), unique=True
+    )
+    kind: Mapped[str] = mapped_column(String(32), default="deposit")
+    amount_usdt: Mapped[Decimal] = mapped_column(NUMERIC)
+    balance_after: Mapped[Decimal] = mapped_column(NUMERIC)
+    idempotency_key: Mapped[str] = mapped_column(String(160), unique=True)
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class VerificationLog(Base):
+    __tablename__ = "verification_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    deposit_order_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("deposit_orders.id"), nullable=True, index=True
+    )
+    user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    provider: Mapped[str] = mapped_column(String(32))
+    reference: Mapped[str] = mapped_column(String(128), default="")
+    outcome: Mapped[str] = mapped_column(String(40), index=True)
+    detail: Mapped[str] = mapped_column(Text, default="")
+    response_payload: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% block title %}Dodi Store Admin{% endblock %}</title>
+    <title>{% block title %}Batman Admin{% endblock %}</title>
     <style>
       :root {
         --bg: #0f1218;
@@ -188,21 +188,29 @@
       details summary {
         cursor: pointer;
       }
+      footer {
+        color: var(--muted);
+        font-size: 12px;
+        text-align: center;
+        padding: 8px 24px 24px;
+      }
     </style>
   </head>
   <body>
     <header>
-      <h1>🛍️ Dodi Store · Admin</h1>
+      <h1>🦇 Batman Admin</h1>
       <nav>
         <a href="/">Dashboard</a>
         <a href="/products">Products</a>
         <a href="/withdrawals">Withdrawals</a>
         <a href="/orders">Orders</a>
         <a href="/payments">Payments</a>
+        <a href="/deposit-settings">Deposits</a>
         <a href="/users">Users</a>
         <a href="/logout">Logout</a>
       </nav>
     </header>
     <main>{% block content %}{% endblock %}</main>
+    <footer>Batman Store · Batman · Support @pvtbatman</footer>
   </body>
 </html>

@@ -18,3 +18,11 @@ class AdminStates(StatesGroup):
 class ShopStates(StatesGroup):
     waiting_custom_qty = State()
     waiting_binance_reference = State()
+
+
+class DepositStates(StatesGroup):
+    waiting_uid_amount = State()
+    waiting_uid_order_id = State()
+    waiting_direct_order_id = State()
+    waiting_bep20_amount = State()
+    waiting_bep20_txid = State()

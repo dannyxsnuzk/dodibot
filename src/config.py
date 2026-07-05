@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     admin_ids: list[int] | int | str = Field(default_factory=list, alias="ADMIN_IDS")
     bot_username: str = Field("", alias="BOT_USERNAME")
 
-    shop_name: str = Field("Dodi Store", alias="SHOP_NAME")
-    support_username: str = Field("babaswiftbot", alias="SUPPORT_USERNAME")
+    shop_name: str = Field("Batman Store", alias="SHOP_NAME")
+    support_username: str = Field("pvtbatman", alias="SUPPORT_USERNAME")
 
     binance_uid: str = Field("", alias="BINANCE_UID")
     binance_api_key: str = Field("", alias="BINANCE_API_KEY")
@@ -32,6 +32,25 @@ class Settings(BaseSettings):
         "https://api.binance.com",
         alias="BINANCE_API_BASE_URL",
     )
+    binance_pay_api_key: str = Field("", alias="BINANCE_PAY_API_KEY")
+    binance_pay_secret_key: str = Field("", alias="BINANCE_PAY_SECRET_KEY")
+    binance_pay_api_base_url: str = Field(
+        "https://bpay.binanceapi.com",
+        alias="BINANCE_PAY_API_BASE_URL",
+    )
+    bep20_wallet_address: str = Field("", alias="BEP20_WALLET_ADDRESS")
+    bsc_rpc_url: str = Field("https://bsc-dataseed.binance.org", alias="BSC_RPC_URL")
+    bep20_usdt_contract: str = Field(
+        "0x55d398326f99059fF775485246999027B3197955",
+        alias="BEP20_USDT_CONTRACT",
+    )
+    deposit_min: Decimal = Field(Decimal("1"), alias="DEPOSIT_MIN")
+    deposit_max: Decimal = Field(Decimal("10000"), alias="DEPOSIT_MAX")
+    deposit_required_confirmations: int = Field(12, alias="DEPOSIT_REQUIRED_CONFIRMATIONS")
+    deposit_allowed_window_minutes: int = Field(60, alias="DEPOSIT_ALLOWED_WINDOW_MINUTES")
+    uid_deposit_enabled: bool = Field(True, alias="UID_DEPOSIT_ENABLED")
+    order_id_deposit_enabled: bool = Field(True, alias="ORDER_ID_DEPOSIT_ENABLED")
+    bep20_deposit_enabled: bool = Field(True, alias="BEP20_DEPOSIT_ENABLED")
 
     payment_require_amount_match: bool = Field(
         True,

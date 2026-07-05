@@ -38,6 +38,7 @@ class Settings(BaseSettings):
         "https://bpay.binanceapi.com",
         alias="BINANCE_PAY_API_BASE_URL",
     )
+    binance_wallet_address: str = Field("", alias="BINANCE_WALLET_ADDRESS")
     bep20_wallet_address: str = Field("", alias="BEP20_WALLET_ADDRESS")
     bsc_rpc_url: str = Field("https://bsc-dataseed.binance.org", alias="BSC_RPC_URL")
     bep20_usdt_contract: str = Field(

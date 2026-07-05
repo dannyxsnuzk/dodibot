@@ -484,8 +484,9 @@ async def payments_reject(
     return RedirectResponse("/payments?flash=rejected", status_code=303)
 
 
-# ----- Deposit settings ----------
+# ----- Payment settings ----------
 
+@app.get("/payment-settings", response_class=HTMLResponse)
 @app.get("/deposit-settings", response_class=HTMLResponse)
 async def deposit_settings_page(
     request: Request,
@@ -520,6 +521,7 @@ async def deposit_settings_page(
     })
 
 
+@app.post("/payment-settings")
 @app.post("/deposit-settings")
 async def deposit_settings_save(
     binance_uid: str = Form(""),
@@ -527,7 +529,12 @@ async def deposit_settings_save(
     binance_secret: str = Form(""),
     binance_pay_api_key: str = Form(""),
     binance_pay_secret: str = Form(""),
+    binance_wallet_address: str = Form(""),
     bep20_wallet_address: str = Form(""),
+    binance_api_base_url: str = Form(...),
+    binance_pay_api_base_url: str = Form(...),
+    bsc_rpc_url: str = Form(...),
+    bep20_usdt_contract: str = Form(...),
     minimum: str = Form(...),
     maximum: str = Form(...),
     required_confirmations: int = Form(...),
@@ -543,18 +550,30 @@ async def deposit_settings_save(
         min_amount = Decimal(minimum)
         max_amount = Decimal(maximum)
     except InvalidOperation:
-        return RedirectResponse("/deposit-settings?error=amount", status_code=303)
+        return RedirectResponse("/payment-settings?error=amount", status_code=303)
     if min_amount <= 0 or max_amount < min_amount:
-        return RedirectResponse("/deposit-settings?error=range", status_code=303)
+        return RedirectResponse("/payment-settings?error=range", status_code=303)
     if required_confirmations < 1 or required_confirmations > 1000:
-        return RedirectResponse("/deposit-settings?error=confirmations", status_code=303)
+        return RedirectResponse("/payment-settings?error=confirmations", status_code=303)
     if allowed_window_minutes < 1 or allowed_window_minutes > 43200:
-        return RedirectResponse("/deposit-settings?error=window", status_code=303)
+        return RedirectResponse("/payment-settings?error=timeout", status_code=303)
     wallet_address = bep20_wallet_address.strip()
-    if wallet_address and (
-        len(wallet_address) != 42 or not wallet_address.startswith("0x")
-    ):
-        return RedirectResponse("/deposit-settings?error=wallet", status_code=303)
+    token_contract = bep20_usdt_contract.strip()
+    try:
+        for address in (wallet_address, token_contract):
+            if address:
+                if len(address) != 42 or not address.startswith("0x"):
+                    raise ValueError
+                int(address[2:], 16)
+    except ValueError:
+        return RedirectResponse("/payment-settings?error=wallet", status_code=303)
+    urls = (
+        binance_api_base_url.strip(),
+        binance_pay_api_base_url.strip(),
+        bsc_rpc_url.strip(),
+    )
+    if any(not url.startswith(("https://", "http://")) for url in urls):
+        return RedirectResponse("/payment-settings?error=url", status_code=303)
 
     await update_deposit_settings(db, {
         "binance_uid": binance_uid.strip(),
@@ -566,7 +585,12 @@ async def deposit_settings_save(
         "binance_pay_secret": (
             binance_pay_secret.strip() or current.binance_pay_secret
         ),
+        "binance_wallet_address": binance_wallet_address.strip(),
         "bep20_wallet_address": wallet_address,
+        "binance_api_base_url": urls[0],
+        "binance_pay_api_base_url": urls[1],
+        "bsc_rpc_url": urls[2],
+        "bep20_usdt_contract": token_contract,
         "minimum": str(min_amount),
         "maximum": str(max_amount),
         "required_confirmations": str(required_confirmations),
@@ -575,4 +599,4 @@ async def deposit_settings_save(
         "order_id_enabled": str(order_id_enabled is not None).lower(),
         "bep20_enabled": str(bep20_enabled is not None).lower(),
     })
-    return RedirectResponse("/deposit-settings?saved=1", status_code=303)
+    return RedirectResponse("/payment-settings?saved=1", status_code=303)

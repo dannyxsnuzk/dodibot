@@ -48,85 +48,143 @@ async def deposit_menu(
         session=session,
         text=text,
         keyboard=kb.deposit_methods_kb(
-            uid_enabled=settings.uid_enabled,
-            order_id_enabled=settings.order_id_enabled,
+            binance_enabled=settings.uid_enabled or settings.order_id_enabled,
             bep20_enabled=settings.bep20_enabled,
         ),
     )
     await cb.answer()
 
 
-@router.callback_query(F.data == kb.CB_DEPOSIT_UID)
-async def uid_start(
+@router.callback_query(F.data == kb.CB_DEPOSIT_BINANCE)
+async def binance_start(
     cb: CallbackQuery, session: AsyncSession, state: FSMContext
 ) -> None:
     settings = await get_deposit_settings(session)
-    if not settings.uid_enabled:
-        await cb.answer("UID deposits are disabled.", show_alert=True)
+    if not (settings.uid_enabled or settings.order_id_enabled):
+        await cb.answer("Binance Pay deposits are disabled.", show_alert=True)
         return
     if not settings.binance_uid:
         await cb.answer("Binance UID is not configured.", show_alert=True)
         return
     await state.clear()
-    await state.set_state(DepositStates.waiting_uid_amount)
+    await state.set_state(DepositStates.waiting_binance_amount)
     await render_from_callback(
         cb,
         session=session,
         text=(
-            "🟡 <b>Binance Pay (UID)</b>\n\n"
-            "Send USDT to this Binance UID:\n"
+            "🟡 <b>Binance Pay</b>\n\n"
+            "Binance UID:\n"
             f"<code>{_html(settings.binance_uid)}</code>\n\n"
+            "1. Send USDT to the Binance UID above.\n"
+            "2. Keep the completed payment Order ID.\n"
+            "3. Enter the exact deposit amount below.\n\n"
             f"Minimum: <b>{settings.minimum} USDT</b>\n"
             f"Maximum: <b>{settings.maximum} USDT</b>\n\n"
-            "Enter the exact amount deposited:"
+            "<b>Enter Deposit Amount</b>"
         ),
         keyboard=kb.deposit_cancel_kb(),
     )
     await cb.answer()
 
 
-@router.message(DepositStates.waiting_uid_amount)
-async def uid_amount(
+@router.message(DepositStates.waiting_binance_amount)
+async def binance_amount(
     message: Message, session: AsyncSession, state: FSMContext
 ) -> None:
     settings = await get_deposit_settings(session)
     amount = await _parse_amount(message, settings)
     if amount is None:
         return
-    order = await deposits_repo.create_deposit(
-        session, user_id=message.from_user.id, method="binance_uid", expected_amount=amount
-    )
-    await state.update_data(deposit_id=order.id)
-    await state.set_state(DepositStates.waiting_uid_order_id)
+    await state.update_data(expected_amount=str(amount))
+    await state.set_state(DepositStates.choosing_binance_verification)
     await _render_for_message(
         message,
         session,
-        "🟡 <b>Amount saved</b>\n\n"
+        "<b>Choose Verification Method</b>\n\n"
         f"Expected: <b>{amount} USDT</b>\n\n"
-        "Now send the Binance Pay Order ID:",
+        "Select how the payment should be verified:",
+        keyboard=kb.binance_verification_kb(
+            order_id_enabled=settings.order_id_enabled,
+            uid_enabled=settings.uid_enabled,
+        ),
     )
     await _delete_user_message(message)
 
 
-@router.callback_query(F.data == kb.CB_DEPOSIT_ORDER)
-async def direct_order_start(
+@router.callback_query(F.data == kb.CB_DEPOSIT_VERIFY)
+async def show_binance_verification(
+    cb: CallbackQuery, session: AsyncSession, state: FSMContext
+) -> None:
+    data = await state.get_data()
+    amount = data.get("expected_amount")
+    if not amount:
+        await binance_start(cb, session, state)
+        return
+    settings = await get_deposit_settings(session)
+    await state.set_state(DepositStates.choosing_binance_verification)
+    await render_from_callback(
+        cb,
+        session=session,
+        text=(
+            "<b>Choose Verification Method</b>\n\n"
+            f"Expected: <b>{_html(amount)} USDT</b>\n\n"
+            "Select how the payment should be verified:"
+        ),
+        keyboard=kb.binance_verification_kb(
+            order_id_enabled=settings.order_id_enabled,
+            uid_enabled=settings.uid_enabled,
+        ),
+    )
+    await cb.answer()
+
+
+@router.callback_query(F.data == kb.CB_DEPOSIT_VERIFY_ORDER)
+async def choose_order_id(
     cb: CallbackQuery, session: AsyncSession, state: FSMContext
 ) -> None:
     settings = await get_deposit_settings(session)
     if not settings.order_id_enabled:
-        await cb.answer("Order ID deposits are disabled.", show_alert=True)
+        await cb.answer("Order ID verification is disabled.", show_alert=True)
         return
-    await state.clear()
+    if not (await state.get_data()).get("expected_amount"):
+        await cb.answer("Deposit session expired. Start again.", show_alert=True)
+        return
+    await state.update_data(verification_method="binance_order_id")
     await state.set_state(DepositStates.waiting_direct_order_id)
     await render_from_callback(
         cb,
         session=session,
         text=(
-            "🟢 <b>Binance Pay (Order ID)</b>\n\n"
-            "Paste your Binance Pay Order ID.\n"
-            "The verified USDT amount will be credited automatically."
+            "🟡 <b>Order ID Verification</b>\n\n"
+            "Paste the Binance Pay Order ID:"
         ),
-        keyboard=kb.deposit_cancel_kb(),
+        keyboard=kb.deposit_cancel_kb(kb.CB_DEPOSIT_VERIFY),
+    )
+    await cb.answer()
+
+
+@router.callback_query(F.data == kb.CB_DEPOSIT_VERIFY_UID)
+async def choose_uid_payment(
+    cb: CallbackQuery, session: AsyncSession, state: FSMContext
+) -> None:
+    settings = await get_deposit_settings(session)
+    if not settings.uid_enabled:
+        await cb.answer("UID verification is disabled.", show_alert=True)
+        return
+    if not (await state.get_data()).get("expected_amount"):
+        await cb.answer("Deposit session expired. Start again.", show_alert=True)
+        return
+    await state.update_data(verification_method="binance_uid")
+    await state.set_state(DepositStates.waiting_uid_order_id)
+    await render_from_callback(
+        cb,
+        session=session,
+        text=(
+            "🟢 <b>UID Payment Verification</b>\n\n"
+            "After completing the payment to the shown Binance UID, "
+            "send the Binance Pay Order ID:"
+        ),
+        keyboard=kb.deposit_cancel_kb(kb.CB_DEPOSIT_VERIFY),
     )
     await cb.answer()
 
@@ -137,24 +195,25 @@ async def binance_order_input(
     message: Message, session: AsyncSession, state: FSMContext
 ) -> None:
     reference = (message.text or "").strip()
-    current_state = await state.get_state()
     data = await state.get_data()
-    if current_state == DepositStates.waiting_uid_order_id.state:
-        order = await deposits_repo.get_deposit(
-            session, int(data.get("deposit_id", 0)), message.from_user.id
-        )
-    else:
-        order = await deposits_repo.create_deposit(
-            session,
-            user_id=message.from_user.id,
-            method="binance_order_id",
-            expected_amount=None,
-        )
-    if order is None:
+    method = str(data.get("verification_method") or "")
+    try:
+        expected_amount = Decimal(str(data.get("expected_amount")))
+    except (InvalidOperation, ValueError):
         await state.clear()
         await message.answer("Deposit session expired. Please start again.")
         return
-    await _render_for_message(message, session, "⏳ <b>Verifying...</b>")
+    if method not in {"binance_uid", "binance_order_id"}:
+        await state.clear()
+        await message.answer("Deposit session expired. Please start again.")
+        return
+    order = await deposits_repo.create_deposit(
+        session,
+        user_id=message.from_user.id,
+        method=method,
+        expected_amount=expected_amount,
+    )
+    await _render_for_message(message, session, "⏳ <b>Verifying Payment...</b>")
     await _delete_user_message(message)
 
     if await deposits_repo.reference_is_used(
@@ -198,7 +257,7 @@ async def binance_order_input(
     await _render_for_message(
         message,
         session,
-        "✔ <b>Deposit Verified</b>\n\n"
+        "✅ <b>Payment Verified</b>\n\n"
         f"💰 Wallet Credited: <b>{match.amount} USDT</b>\n"
         f"Wallet Balance: <b>{balance} USDT</b>",
         keyboard=kb.main_menu_kb(),
@@ -229,7 +288,7 @@ async def bep20_start(
             f"Minimum: <b>{settings.minimum} USDT</b>\n"
             f"Maximum: <b>{settings.maximum} USDT</b>\n"
             f"Confirmations required: <b>{settings.required_confirmations}</b>\n\n"
-            "Send only USDT on BEP20. Enter the exact amount:"
+        "Send only USDT on BEP20.\n\n<b>Enter amount</b>"
         ),
         keyboard=kb.deposit_cancel_kb(),
     )
@@ -262,7 +321,7 @@ async def bep20_amount(
         session,
         "🟠 <b>BEP20 transaction</b>\n\n"
         f"Expected: <b>{amount} USDT</b>\n\n"
-        "Send the transaction hash (TXID):",
+        "<b>Paste Transaction Hash (TXID)</b>",
     )
     await _delete_user_message(message)
 
@@ -280,7 +339,7 @@ async def bep20_txid(
         await state.clear()
         await message.answer("Deposit session expired. Please start again.")
         return
-    await _render_for_message(message, session, "⏳ <b>Verifying...</b>")
+    await _render_for_message(message, session, "⏳ <b>Verifying Payment...</b>")
     await _delete_user_message(message)
     if await deposits_repo.reference_is_used(
         session, method="bep20", reference=reference
@@ -319,7 +378,7 @@ async def bep20_txid(
     await _render_for_message(
         message,
         session,
-        "✔ <b>Deposit Verified</b>\n\n"
+        "✅ <b>Payment Verified</b>\n\n"
         f"💰 Wallet Credited: <b>{match.amount} USDT</b>\n"
         f"Wallet Balance: <b>{balance} USDT</b>",
         keyboard=kb.main_menu_kb(),

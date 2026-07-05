@@ -21,6 +21,8 @@ class ShopStates(StatesGroup):
 
 
 class DepositStates(StatesGroup):
+    waiting_binance_amount = State()
+    choosing_binance_verification = State()
     waiting_uid_amount = State()
     waiting_uid_order_id = State()
     waiting_direct_order_id = State()

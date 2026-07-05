@@ -22,6 +22,7 @@ class DepositSettings:
     binance_pay_api_key: str
     binance_pay_secret: str
     binance_pay_api_base_url: str
+    binance_wallet_address: str
     bep20_wallet_address: str
     bsc_rpc_url: str
     bep20_usdt_contract: str
@@ -64,6 +65,9 @@ async def get_deposit_settings(session: AsyncSession) -> DepositSettings:
         binance_pay_api_base_url=value(
             "binance_pay_api_base_url", env.binance_pay_api_base_url
         ).strip(),
+        binance_wallet_address=value(
+            "binance_wallet_address", env.binance_wallet_address
+        ).strip(),
         bep20_wallet_address=value("bep20_wallet_address", env.bep20_wallet_address).strip(),
         bsc_rpc_url=value("bsc_rpc_url", env.bsc_rpc_url).strip(),
         bep20_usdt_contract=value("bep20_usdt_contract", env.bep20_usdt_contract).strip(),
@@ -98,6 +102,7 @@ async def update_deposit_settings(
         "binance_pay_api_key",
         "binance_pay_secret",
         "binance_pay_api_base_url",
+        "binance_wallet_address",
         "bep20_wallet_address",
         "bsc_rpc_url",
         "bep20_usdt_contract",

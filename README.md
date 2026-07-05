@@ -53,6 +53,11 @@ Copy `.env.example` to `.env` and fill in:
 | `PREMIUM_BUTTON_ICONS`     | Enables Bot API button icons when supported.              |
 | `BUTTON_STYLES_ENABLED`    | Enables Bot API button colors when supported.             |
 
+Payment-provider credentials and deposit limits are managed at
+**Batman Admin → Payment Settings**. They are stored in the database and
+apply immediately, so Railway payment configuration does not require
+editing environment variables after deployment.
+
 ## User Flow
 
 - **Shop**: browse products, view stock count and price, confirm an order, receive the stock payload.

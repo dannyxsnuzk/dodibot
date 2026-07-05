@@ -12,9 +12,11 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_settings
+from ..db.models import Transaction
 from ..db.session import SessionLocal
 from ..repositories import payments as payments_repo
 from ..repositories import products as products_repo
+from ..repositories import users as users_repo
 from ..services.payment_flow import verify_reference
 from ..services.payment_verification import detect_id_type
 from ..services.shop import BuyError, OutOfStock, buy_product_quantity
@@ -270,6 +272,9 @@ async def show_payment_methods(
     if product is None or not product.is_active:
         await cb.answer("Unavailable.", show_alert=True)
         return
+    total = (Decimal(str(product.price_usdt)) * Decimal(qty)).quantize(Decimal("0.01"))
+    user = await users_repo.get_user(session, cb.from_user.id)
+    balance = Decimal(str(user.balance_usdt or 0)) if user is not None else Decimal("0")
     await render_from_callback(
         cb,
         session=session,
@@ -281,9 +286,109 @@ async def show_payment_methods(
             qty=qty,
             price_each=Decimal(str(product.price_usdt)),
         ),
-        keyboard=kb.payment_methods_kb(pid, qty),
+        keyboard=kb.payment_methods_kb(pid, qty, can_pay_balance=balance >= total),
     )
     await cb.answer()
+
+
+@router.callback_query(F.data.startswith(f"{kb.CB_PAY_BALANCE}:"))
+async def pay_with_balance(
+    cb: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    await _release_state_reservation(session, state, cb.from_user.id)
+    await state.clear()
+    _, _, pid_s, qty_s = cb.data.split(":")
+    pid = int(pid_s)
+    qty = int(qty_s)
+    product = await products_repo.get_product(session, pid)
+    if product is None or not product.is_active:
+        await cb.answer("Unavailable.", show_alert=True)
+        return
+    total = (Decimal(str(product.price_usdt)) * Decimal(qty)).quantize(Decimal("0.01"))
+    user = await users_repo.get_user(session, cb.from_user.id)
+    balance = Decimal(str(user.balance_usdt or 0)) if user is not None else Decimal("0")
+    if user is None or balance < total:
+        await cb.answer("Insufficient balance.", show_alert=True)
+        await render_from_callback(
+            cb,
+            session=session,
+            text=texts.payment_method(
+                name=product.display_name,
+                emoji=product.emoji,
+                emoji_id=product.emoji_id,
+                duration=product.duration_label,
+                qty=qty,
+                price_each=Decimal(str(product.price_usdt)),
+            ),
+            keyboard=kb.payment_methods_kb(pid, qty, can_pay_balance=False),
+        )
+        return
+    reserved = await products_repo.reserve_stock_items(
+        session,
+        product_id=pid,
+        user_id=cb.from_user.id,
+        qty=qty,
+        ttl_minutes=10,
+    )
+    if reserved < qty:
+        await products_repo.release_user_reservations(
+            session,
+            product_id=pid,
+            user_id=cb.from_user.id,
+        )
+        await cb.answer(f"Only {reserved} code(s) could be reserved. Please choose a smaller quantity.", show_alert=True)
+        return
+
+    user.balance_usdt = balance - total
+    session.add(Transaction(
+        user_id=cb.from_user.id,
+        kind="balance_purchase",
+        amount_usdt=-total,
+        note=f"shop purchase product_id={pid} qty={qty}",
+    ))
+    try:
+        result = await buy_product_quantity(
+            session,
+            user_id=cb.from_user.id,
+            product_id=pid,
+            qty=qty,
+        )
+    except OutOfStock:
+        await session.rollback()
+        await products_repo.release_user_reservations(
+            session,
+            product_id=pid,
+            user_id=cb.from_user.id,
+        )
+        await cb.answer("Stock is no longer available.", show_alert=True)
+        return
+    except BuyError as e:
+        await session.rollback()
+        await products_repo.release_user_reservations(
+            session,
+            product_id=pid,
+            user_id=cb.from_user.id,
+        )
+        await cb.answer(str(e), show_alert=True)
+        return
+
+    with contextlib.suppress(Exception):
+        await cb.message.delete()
+    await cb.message.answer(
+        texts.order_success(
+            name=result.product.display_name,
+            duration=result.product.duration_label,
+            qty=qty,
+            total=total,
+            reference="Wallet Balance",
+            payloads=result.payloads,
+        ),
+        parse_mode="HTML",
+        disable_web_page_preview=True,
+    )
+    await cb.answer("Paid with balance")
 
 
 @router.callback_query(F.data.startswith(f"{kb.CB_PAY_BINANCE}:"))

@@ -16,7 +16,7 @@ from ..config import get_settings
 from ..db.session import SessionLocal
 from ..repositories import payments as payments_repo
 from ..repositories import products as products_repo
-from ..services.payment_verification import verify_bep20_payment, verify_binance_payment
+from ..services.payment_flow import is_plausible_reference, verify_reference
 from ..services.shop import BuyError, OutOfStock, buy_product_quantity
 from .states import ShopStates
 from ..ui import keyboards as kb
@@ -466,11 +466,7 @@ async def receive_binance_reference(
     if duplicate_payment is not None:
         await message.answer("⚠️ This transaction has already been submitted.")
         return
-    plausible_reference = (
-        _is_plausible_bep20_reference(reference)
-        if provider == "bep20"
-        else _is_plausible_payment_reference(reference)
-    )
+    plausible_reference = is_plausible_reference(provider, reference)
     tx_attempts = int(data.get("tx_attempts") or 0)
     active_payment_id = data.get("active_payment_id")
     if active_payment_id:
@@ -901,9 +897,7 @@ async def _verify_payment_reference(session: AsyncSession, payment) -> bool:
         payment.expected_amount_usdt,
         settings.payment_check_duplicate_txid,
     )
-    if payment.provider == "bep20":
-        return await verify_bep20_payment(payment.reference, payment)
-    return await verify_binance_payment(payment.reference, payment)
+    return await verify_reference(payment.provider, payment.reference, payment)
 
 
 async def _release_state_reservation(

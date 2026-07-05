@@ -19,7 +19,7 @@ from urllib.parse import urlencode
 import aiohttp
 
 from ..config import get_settings
-from ..db.models import PaymentVerification
+from typing import Protocol
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +42,14 @@ def _as_decimal(value: object) -> Decimal | None:
         return None
 
 
-def _amount_expected(payment: PaymentVerification) -> Decimal:
+class VerificationTarget(Protocol):
+    id: int
+    expected_amount_usdt: Decimal
+    received_amount_usdt: Decimal | None
+    verification_note: str
+
+
+def _amount_expected(payment: VerificationTarget) -> Decimal:
     return Decimal(str(payment.expected_amount_usdt)).quantize(Decimal("0.01"))
 
 
@@ -83,7 +90,7 @@ def _binance_rows(payload: object) -> list[dict]:
     return [row for row in rows if isinstance(row, dict)]
 
 
-async def verify_binance_payment(order_or_tx_id: str, payment: PaymentVerification) -> bool:
+async def verify_binance_payment(order_or_tx_id: str, payment: VerificationTarget) -> bool:
     """Verify a Binance Pay / UID transfer via ``GET /sapi/v1/pay/transactions``.
 
     On success this mutates ``payment.received_amount_usdt`` and
@@ -121,6 +128,7 @@ async def verify_binance_payment(order_or_tx_id: str, payment: PaymentVerificati
         if result.ok and isinstance(result.payload, dict):
             amount = _as_decimal(result.payload.get("amount")) or expected
             payment.received_amount_usdt = amount.quantize(Decimal("0.01"))
+            setattr(payment, "verification_payload", result.payload)
             payment.verification_note = (
                 "auto matched Binance Pay transaction; "
                 f"orderId={result.payload.get('orderId')}; "
@@ -206,7 +214,7 @@ async def _query_binance_pay_transactions(
     return ProviderResult(False, True, "No matching Binance Pay transaction found yet.", payload)
 
 
-async def verify_bep20_payment(tx_hash: str, payment: PaymentVerification) -> bool:
+async def verify_bep20_payment(tx_hash: str, payment: VerificationTarget) -> bool:
     """Verify a USDT BEP20 transfer by hash through BscScan proxy endpoints."""
     txid = tx_hash.strip().lower()
     expected = _amount_expected(payment)
@@ -224,6 +232,7 @@ async def verify_bep20_payment(tx_hash: str, payment: PaymentVerification) -> bo
         )
         if result.ok and isinstance(result.payload, dict):
             payment.received_amount_usdt = Decimal(str(result.payload["amount"])).quantize(Decimal("0.01"))
+            setattr(payment, "verification_payload", result.payload)
             payment.verification_note = (
                 "auto matched BEP20 USDT transfer; "
                 f"confirmations={result.payload.get('confirmations')}; ref:{txid}"

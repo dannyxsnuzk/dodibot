@@ -19,6 +19,12 @@ from ..services.deposit_verification import (
     query_binance_pay_transaction,
     verify_bep20_tx,
 )
+from ..services.payment_flow import (
+    is_plausible_reference,
+    payment_instructions,
+    retry_operation,
+    run_with_progress,
+)
 from ..ui import keyboards as kb
 from ..ui.editor import render, render_from_callback
 from .states import DepositStates
@@ -67,6 +73,14 @@ async def binance_start(
     await state.clear()
     await state.update_data(verification_method="auto_binance")
     await state.set_state(DepositStates.waiting_uid_order_id)
+    await render_from_callback(
+        cb,
+        session=session,
+        text=payment_instructions("binance_pay", settings.binance_uid),
+        keyboard=kb.deposit_cancel_kb(),
+    )
+    await cb.answer()
+    return
     await render_from_callback(
         cb,
         session=session,
@@ -194,6 +208,9 @@ async def binance_order_input(
     message: Message, session: AsyncSession, state: FSMContext
 ) -> None:
     reference = (message.text or "").strip()
+    if not is_plausible_reference("binance_pay", reference):
+        await message.answer("Please send a valid Binance Pay Order ID / transaction ID.")
+        return
     data = await state.get_data()
     method = str(data.get("verification_method") or "")
     expected_amount: Decimal | None = None
@@ -232,7 +249,13 @@ async def binance_order_input(
         return
     settings = await get_deposit_settings(session)
     try:
-        match = await _query_binance_reference(reference, method, settings)
+        match = await run_with_progress(
+            reference,
+            retry_operation(
+                lambda: _query_binance_reference(reference, method, settings)
+            ),
+            lambda text: _render_for_message(message, session, text),
+        )
         _validate_binance_match(order, match.amount, match.paid_at, settings)
         balance = await deposits_repo.finalize_binance(
             session, order, submitted_order_id=reference, match=match
@@ -275,6 +298,14 @@ async def bep20_start(
         return
     await state.clear()
     await state.set_state(DepositStates.waiting_bep20_txid)
+    await render_from_callback(
+        cb,
+        session=session,
+        text=payment_instructions("bep20", settings.bep20_wallet_address),
+        keyboard=kb.deposit_cancel_kb(),
+    )
+    await cb.answer()
+    return
     await render_from_callback(
         cb,
         session=session,
@@ -322,6 +353,9 @@ async def bep20_txid(
     message: Message, session: AsyncSession, state: FSMContext
 ) -> None:
     reference = (message.text or "").strip().lower()
+    if not is_plausible_reference("bep20", reference):
+        await message.answer("Please send a valid BEP20 transaction hash.")
+        return
     data = await state.get_data()
     deposit_id = data.get("deposit_id")
     if deposit_id:
@@ -361,7 +395,13 @@ async def bep20_txid(
             if order.expected_amount is not None
             else None
         )
-        match = await verify_bep20_tx(reference, expected_amount, settings)
+        match = await run_with_progress(
+            reference,
+            retry_operation(
+                lambda: verify_bep20_tx(reference, expected_amount, settings)
+            ),
+            lambda text: _render_for_message(message, session, text),
+        )
         _validate_deposit_amount(match.amount, settings)
         balance = await deposits_repo.finalize_bep20(session, order, match=match)
     except deposits_repo.DepositAlreadyUsed:

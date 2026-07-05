@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import hmac
 import logging
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -25,6 +26,8 @@ log = logging.getLogger(__name__)
 
 TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 USDT_DECIMALS = Decimal(10) ** 18
+BEP20_HASH_RE = re.compile(r"^0x[a-fA-F0-9]{64}$")
+BINANCE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{5,127}$")
 
 
 @dataclass(frozen=True)
@@ -33,6 +36,16 @@ class ProviderResult:
     retryable: bool = False
     detail: str = ""
     payload: object | None = None
+
+
+def detect_id_type(value: str) -> str:
+    """Classify a submitted payment reference without using screen state."""
+    reference = value.strip()
+    if BEP20_HASH_RE.fullmatch(reference):
+        return "bep20_hash"
+    if BINANCE_ID_RE.fullmatch(reference):
+        return "binance_order_id"
+    return "unknown"
 
 
 def _as_decimal(value: object) -> Decimal | None:

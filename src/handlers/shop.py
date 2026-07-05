@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import re
 from decimal import Decimal
 
 from aiogram import Bot, F, Router
@@ -16,7 +15,8 @@ from ..config import get_settings
 from ..db.session import SessionLocal
 from ..repositories import payments as payments_repo
 from ..repositories import products as products_repo
-from ..services.payment_flow import is_plausible_reference, verify_reference
+from ..services.payment_flow import verify_reference
+from ..services.payment_verification import detect_id_type
 from ..services.shop import BuyError, OutOfStock, buy_product_quantity
 from .states import ShopStates
 from ..ui import keyboards as kb
@@ -45,43 +45,6 @@ PAYMENT_STOP_STATUSES = PAYMENT_FINAL_STATUSES | PAYMENT_APPEALABLE_STATUSES | P
     "ignored",
     "manual_review",
 }
-
-_ETH_TX_RE = re.compile(r"^0x[a-fA-F0-9]{64}$")
-_HEX_TX_RE = re.compile(r"^[a-fA-F0-9]{64}$")
-_BINANCE_PAY_TX_RE = re.compile(r"^P_[A-Z0-9]{8,}$", re.IGNORECASE)
-_BINANCE_ORDER_RE = re.compile(r"^\d{12,24}$")
-
-
-def _is_plausible_payment_reference(reference: str) -> bool:
-    value = reference.strip()
-    return bool(
-        _ETH_TX_RE.fullmatch(value)
-        or _HEX_TX_RE.fullmatch(value)
-        or _BINANCE_PAY_TX_RE.fullmatch(value)
-        or _BINANCE_ORDER_RE.fullmatch(value)
-    )
-
-
-def _is_plausible_bep20_reference(reference: str) -> bool:
-    value = reference.strip()
-    return bool(_ETH_TX_RE.fullmatch(value))
-
-
-def _looks_like_binance_order_reference(reference: str) -> bool:
-    value = reference.strip()
-    return bool(_BINANCE_PAY_TX_RE.fullmatch(value) or _BINANCE_ORDER_RE.fullmatch(value))
-
-
-def _invalid_txid_message(reference: str) -> str:
-    if _looks_like_binance_order_reference(reference):
-        return (
-            "That looks like a Binance Order ID / Pay ID. Please choose Binance Pay, "
-            "or send the BEP20 blockchain transaction hash for wallet payments."
-        )
-    return (
-        "Only blockchain TxID hashes are accepted for auto-verification. "
-        "Binance did not find this value as a deposit TxID."
-    )
 
 
 def _payment_rejection_reason(payment) -> str:
@@ -461,12 +424,29 @@ async def receive_binance_reference(
         await message.answer("Please send the payment Order ID / TxID / transaction hash.")
         return
     data = await state.get_data()
-    provider = str(data.get("payment_provider") or "binance_pay")
+    provider_hint = str(data.get("payment_provider") or "binance_pay")
+    detected_id_type = detect_id_type(reference)
+    if detected_id_type == "unknown":
+        await message.answer(
+            "❌ That doesn't look like a valid Transaction Hash or Order ID. "
+            "Please double-check and paste the exact ID/hash you received after payment."
+        )
+        return
+    provider = "bep20" if detected_id_type == "bep20_hash" else "binance_pay"
+    if provider != provider_hint:
+        log.warning(
+            "payment_verify provider_mismatch user_id=%s hinted_provider=%s detected_provider=%s "
+            "detected_id_type=%s reference=%r",
+            message.from_user.id,
+            provider_hint,
+            provider,
+            detected_id_type,
+            reference,
+        )
     duplicate_payment = await payments_repo.get_reference(session, reference=reference)
     if duplicate_payment is not None:
         await message.answer("⚠️ This transaction has already been submitted.")
         return
-    plausible_reference = is_plausible_reference(provider, reference)
     tx_attempts = int(data.get("tx_attempts") or 0)
     active_payment_id = data.get("active_payment_id")
     if active_payment_id:
@@ -555,42 +535,17 @@ async def receive_binance_reference(
         active_payment_id=payment.id,
         tx_message_id=message.message_id,
     )
-    if not plausible_reference:
-        log.info(
-            "payment_verify invalid_reference_manual_review payment_id=%s user_id=%s provider=%s reference=%r",
-            payment.id,
-            message.from_user.id,
-            provider,
-            reference,
-        )
-        await payments_repo.mark_rejected(
-            session,
-            payment,
-            status="manual_review",
-            note=f"invalid or unusual {provider} reference format; needs admin review",
-        )
-        progress = await message.answer(
-            texts.manual_review_submitted(payment_id=payment.id, reference=payment.reference),
-            parse_mode="HTML",
-            disable_web_page_preview=True,
-        )
-        _ACTIVE_PAYMENT_BY_MESSAGE[(message.chat.id, progress.message_id)] = payment.id
-        await _send_payment_manual_review(
-            bot=message.bot,
-            session=session,
-            payment=payment,
-            chat_id=message.chat.id,
-            message_id=progress.message_id,
-        )
-        await state.clear()
-        return
     log.info(
-        "payment_verify submitted payment_id=%s user_id=%s product_id=%s qty=%s expected=%s reference=%s",
+        "payment_verify submitted payment_id=%s user_id=%s product_id=%s qty=%s expected=%s "
+        "provider=%s hinted_provider=%s detected_id_type=%s reference=%s",
         payment.id,
         message.from_user.id,
         pid,
         qty,
         expected,
+        provider,
+        provider_hint,
+        detected_id_type,
         reference,
     )
     wait_seconds, _interval_seconds = _payment_timing()

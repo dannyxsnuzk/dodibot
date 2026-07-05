@@ -318,12 +318,12 @@ def buy_success(*, name: str, payload: str, order_id: int) -> str:
 
 
 def profile(
-    *, user_id: int, total_spent: Decimal, joined_at: datetime,
+    *, user_id: int, balance: Decimal, joined_at: datetime,
 ) -> str:
     return (
         f"{pe('user')} <b>User Profile</b>\n\n"
         f"{pe('id')} <b>ID:</b> <code>{user_id}</code>\n"
-        f"{pe('coin')} <b>Total Spent:</b> {total_spent:.2f} USDT\n"
+        f"{pe('coin')} <b>Balance:</b> {balance:.2f} USDT\n"
         f"{pe('calendar')} <b>Joined:</b> {joined_at.strftime('%Y-%m-%d')}"
     )
 

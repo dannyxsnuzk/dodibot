@@ -34,12 +34,11 @@ async def show_profile(cb: CallbackQuery, session: AsyncSession, state: FSMConte
     if user is None:
         await cb.answer("User not found.", show_alert=True)
         return
-    total_spent = await orders_repo.total_order_value(session, cb.from_user.id)
     await render_from_callback(
         cb, session=session,
         text=texts.profile(
             user_id=user.id,
-            total_spent=total_spent,
+            balance=Decimal(str(user.balance_usdt or 0)),
             joined_at=user.joined_at,
         ),
         keyboard=kb.profile_kb(),

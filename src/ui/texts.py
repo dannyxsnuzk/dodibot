@@ -139,7 +139,7 @@ def binance_pay_instructions(
     return (
         "💡 You can send any amount — it will be added to your balance.\n"
         "___________________\n"
-        "🏦 <b>Binance Pay / Internal Transfer</b>\n\n"
+        "🏦 Binance Pay / Internal Transfer\n\n"
         "Binance ID:\n"
         f"<code>{_h(binance_id)}</code>\n"
         "👆 Tap to copy\n"
@@ -159,7 +159,7 @@ def bep20_payment_instructions(
     return (
         "💡 You can send any amount — it will be added to your balance.\n"
         "___________________\n"
-        "🪙 <b>USDT (BEP20 - BSC)</b>\n\n"
+        "🪙 USDT (BEP20 - BSC)\n\n"
         "Wallet Address:\n"
         f"<code>{_h(wallet_address)}</code>\n"
         "👆 Tap to copy\n"

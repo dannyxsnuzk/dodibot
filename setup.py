@@ -110,13 +110,49 @@ SHOP_NAME={SHOP_NAME}
 SUPPORT_USERNAME={SUPPORT_USERNAME}
 
 # Manual deposit destination shown to users
+BINANCE_RECEIVING_UID=
 BINANCE_UID=
 
-# Binance API for automatic TxID / Order ID verification
-# Add these later from your Binance account settings.
+# Binance SAPI credentials for automatic Binance Pay / UID-transfer verification.
+# BINANCE_API_SECRET is the preferred name. BINANCE_SECRET_KEY is kept for
+# backward compatibility with older bot/deposit settings.
 BINANCE_API_KEY=
+BINANCE_API_SECRET=
 BINANCE_SECRET_KEY=
 BINANCE_API_BASE_URL=https://api.binance.com
+
+# Binance Pay merchant credentials (used to query merchant-created Order IDs)
+BINANCE_PAY_API_KEY=
+BINANCE_PAY_SECRET_KEY=
+BINANCE_PAY_API_BASE_URL=https://bpay.binanceapi.com
+BINANCE_WALLET_ADDRESS=
+
+# BscScan API key for automatic USDT BEP20 transaction-hash verification.
+BSCSCAN_API_KEY=
+BSCSCAN_API_BASE_URL=https://api.bscscan.com/api
+
+# Wallet-deposit configuration (also editable in Admin > Deposits)
+# RECEIVING_WALLET_ADDRESS and USDT_BEP20_CONTRACT are used by the shop auto-verifier.
+# BEP20_WALLET_ADDRESS and BEP20_USDT_CONTRACT are kept for existing deposit flows.
+RECEIVING_WALLET_ADDRESS=
+BEP20_WALLET_ADDRESS=
+BSC_RPC_URL=https://bsc-dataseed.binance.org
+USDT_BEP20_CONTRACT=0x55d398326f99059fF775485246999027B3197955
+BEP20_USDT_CONTRACT=0x55d398326f99059fF775485246999027B3197955
+DEPOSIT_MIN=1
+DEPOSIT_MAX=10000
+DEPOSIT_REQUIRED_CONFIRMATIONS=12
+DEPOSIT_ALLOWED_WINDOW_MINUTES=60
+UID_DEPOSIT_ENABLED=true
+ORDER_ID_DEPOSIT_ENABLED=true
+BEP20_DEPOSIT_ENABLED=true
+
+# Payment verification safety controls
+PAYMENT_REQUIRE_AMOUNT_MATCH=true
+PAYMENT_CHECK_DUPLICATE_TXID=true
+PAYMENT_LOOKBACK_HOURS=72
+PAYMENT_VERIFY_WAIT_SECONDS=60
+PAYMENT_VERIFY_INTERVAL_SECONDS=12
 
 # SQLite by default. To switch to Postgres later, use postgresql+asyncpg://...
 DATABASE_URL=sqlite+aiosqlite:///./data/bot.db

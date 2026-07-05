@@ -1,8 +1,8 @@
 # Batman Bot - Owner / Admin Manual
 
 This guide matches the current build: product browsing, instant stock delivery,
-withdrawals, referrals, admin commands, and the local dashboard. Payment handling
-is intentionally pending and will be wired later.
+wallet deposits, Binance/BEP20 payment verification, withdrawals, referrals,
+admin commands, and the local dashboard.
 
 ## 1. First-Time Setup
 
@@ -93,7 +93,30 @@ Admin commands:
 
 Rejecting a withdrawal automatically returns the held amount to the user's wallet.
 
-## 5. Users
+## 5. Deposits And Payment Settings
+
+Users can add wallet balance from **Deposit** on the main menu. The bot supports:
+
+- Binance Pay / UID / Order ID deposits.
+- BEP20 USDT transaction-hash deposits.
+
+Configure live payment details from the dashboard:
+
+```text
+Batman Admin -> Deposits
+```
+
+Set the Binance UID, Binance API keys, BEP20 receiving wallet, BSC RPC URL,
+USDT contract, min/max deposit limits, confirmation count, and which deposit
+methods are enabled. Changes are stored in the database and apply immediately;
+you do not need to restart the bot after saving dashboard payment settings.
+
+The `.env` file still provides first-launch defaults. On Railway, keep secrets
+such as `BINANCE_API_KEY`, `BINANCE_API_SECRET`, `BINANCE_PAY_SECRET_KEY`, and
+`BSCSCAN_API_KEY` in environment variables, then fine-tune public deposit values
+from the dashboard.
+
+## 6. Users
 
 ```text
 /whois USER_ID
@@ -105,7 +128,7 @@ Rejecting a withdrawal automatically returns the held amount to the user's walle
 
 Manual credit/debit is still available for admin adjustments.
 
-## 6. Broadcasts
+## 7. Broadcasts
 
 ```text
 /broadcast
@@ -114,7 +137,7 @@ Manual credit/debit is still available for admin adjustments.
 After running it, send the next message. The bot forwards that message to active
 users with notifications enabled. Use `/cancel` to stop before sending.
 
-## 7. Premium Emojis
+## 8. Premium Emojis
 
 ```text
 /getemoji
@@ -127,7 +150,7 @@ To capture an emoji ID, send a premium emoji to the bot and reply with
 `/getemoji`. Add the ID to `assets/premium_emojis.json`, then run
 `/reload_emojis`.
 
-## 8. Dashboard
+## 9. Dashboard
 
 The dashboard runs at <http://127.0.0.1:8088> by default.
 
@@ -135,20 +158,21 @@ Pages:
 
 - **Dashboard**: overview stats.
 - **Products**: create, edit, hide, delete, and restock products.
+- **Deposits**: configure Binance/BEP20 deposit settings and inspect recent deposits.
 - **Withdrawals**: approve or reject requests.
 - **Orders**: recent fulfillment history.
 - **Users**: search users, ban/unban, and adjust balances.
 
 The dashboard always binds to `0.0.0.0` and uses `PORT` (default `8088`).
 
-## 9. Backup And Reset
+## 10. Backup And Reset
 
 - Database: `data/bot.db`
 - Backup: copy `data/bot.db`
 - Reset: stop `bot.py`, delete `data/bot.db`, start again
 - Emoji map: `assets/premium_emojis.json`
 
-## 10. Quick Reference
+## 11. Quick Reference
 
 ```text
 RUN:

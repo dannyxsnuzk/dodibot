@@ -136,21 +136,35 @@ def binance_pay_instructions(
     price_each: Decimal,
     binance_id: str,
 ) -> str:
-    total = (price_each * Decimal(qty)).quantize(Decimal("0.01"))
     return (
-        "<b>Binance Pay</b>\n\n"
-        "━━━━━━━━━━━━━━━━\n"
-        f"📦 Product: {_h(name)} {_h(duration)}\n"
-        f"🔢 Quantity: {qty}\n"
-        f"💵 Total: ${total:.2f} USDT\n"
-        "━━━━━━━━━━━━━━━━\n\n"
+        "💡 You can send any amount — it will be added to your balance.\n"
+        "___________________\n"
         "🏦 <b>Binance Pay / Internal Transfer</b>\n\n"
         "Binance ID:\n"
         f"<code>{_h(binance_id)}</code>\n"
-        "👆 Tap to copy\n\n"
-        "━━━━━━━━━━━━━━━━\n"
-        "✅ After payment, send the blockchain Transaction Hash (TxID) here.\n"
-        "⚡️ Once verified, your items will be delivered automatically."
+        "👆 Tap to copy\n"
+        "___________________\n"
+        "After sending, paste your Transaction Hash (TxID) or Order ID here and we'll verify it automatically."
+    )
+
+
+def bep20_payment_instructions(
+    *,
+    name: str,
+    duration: str,
+    qty: int,
+    price_each: Decimal,
+    wallet_address: str,
+) -> str:
+    return (
+        "💡 You can send any amount — it will be added to your balance.\n"
+        "___________________\n"
+        "🪙 <b>USDT (BEP20 - BSC)</b>\n\n"
+        "Wallet Address:\n"
+        f"<code>{_h(wallet_address)}</code>\n"
+        "👆 Tap to copy\n"
+        "___________________\n"
+        "After sending, paste your Transaction Hash (TxID) or Order ID here and we'll verify it automatically."
     )
 
 
@@ -168,24 +182,14 @@ def payment_verifying(*, reference: str, progress_pct: int, remaining_text: str)
     pct = max(0, min(100, progress_pct))
     filled = min(10, max(0, pct // 10))
     bar = "█" * filled + "░" * (10 - filled)
-    if pct < 25:
-        status = "Checking Binance deposit history"
-    elif pct < 50:
-        status = "Matching the TxID"
-    elif pct < 75:
-        status = "Confirming USDT deposit details"
-    elif pct < 100:
-        status = "Final verification pass"
-    else:
-        status = "Finishing up"
     return (
-        "⏳ <b>Verifying Transaction</b>\n\n"
-        "<b>TxID</b>\n"
+        "⏳ <b>Verifying Transaction...</b>\n\n"
+        "<b>TxID:</b>\n"
         f"<code>{_h(reference)}</code>\n\n"
         f"<code>{bar}</code> <b>{pct}%</b>\n\n"
-        f"🔄 {status}\n"
-        f"⏱️ {remaining_text} remaining\n\n"
-        "Please wait while we confirm your transaction."
+        "🔄 Checking blockchain &amp; exchange APIs...\n"
+        f"⏱ {remaining_text} remaining\n\n"
+        "Please wait while we confirm your payment."
     )
 
 
@@ -197,11 +201,16 @@ def payment_verified_binance(amount: Decimal) -> str:
     )
 
 
-def payment_verified_detail(*, amount: Decimal, reference: str) -> str:
+def payment_verified_detail(
+    *,
+    amount: Decimal,
+    reference: str,
+    network: str = "USDT Binance Pay",
+) -> str:
     return (
         "✅ <b>Payment Verified!</b>\n\n"
         f"💰 Amount: <b>{amount:.2f} USDT</b>\n"
-        "🪙 Network/Coin: <b>USDT Binance Pay</b>\n"
+        f"🪙 Network/Coin: <b>{_h(network)}</b>\n"
         f"🔗 TxID: <code>{_h(reference)}</code>\n\n"
         "⏳ Delivering your items..."
     )
@@ -221,10 +230,7 @@ def payment_rejected(reference: str, reason: str | None = None) -> str:
 
 def manual_review_submitted(*, payment_id: int, reference: str) -> str:
     return (
-        "🧾 <b>Manual Review Submitted</b>\n\n"
-        f"Ticket: <code>#{payment_id}</code>\n"
-        f"TxID: <code>{_h(reference)}</code>\n\n"
-        "An admin will review your payment and deliver the order if it is valid."
+        "⏳ We couldn't auto-verify this yet. Your payment has been submitted for manual review and will be processed shortly."
     )
 
 

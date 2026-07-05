@@ -4,7 +4,7 @@ from __future__ import annotations
 from decimal import Decimal
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -25,8 +25,12 @@ class Settings(BaseSettings):
     shop_name: str = Field("Batman Store", alias="SHOP_NAME")
     support_username: str = Field("pvtbatman", alias="SUPPORT_USERNAME")
 
-    binance_uid: str = Field("", alias="BINANCE_UID")
+    binance_uid: str = Field(
+        "",
+        validation_alias=AliasChoices("BINANCE_RECEIVING_UID", "BINANCE_UID"),
+    )
     binance_api_key: str = Field("", alias="BINANCE_API_KEY")
+    binance_api_secret: str = Field("", alias="BINANCE_API_SECRET")
     binance_secret_key: str = Field("", alias="BINANCE_SECRET_KEY")
     binance_api_base_url: str = Field(
         "https://api.binance.com",
@@ -40,7 +44,14 @@ class Settings(BaseSettings):
     )
     binance_wallet_address: str = Field("", alias="BINANCE_WALLET_ADDRESS")
     bep20_wallet_address: str = Field("", alias="BEP20_WALLET_ADDRESS")
+    receiving_wallet_address: str = Field("", alias="RECEIVING_WALLET_ADDRESS")
+    bscscan_api_key: str = Field("", alias="BSCSCAN_API_KEY")
+    bscscan_api_base_url: str = Field("https://api.bscscan.com/api", alias="BSCSCAN_API_BASE_URL")
     bsc_rpc_url: str = Field("https://bsc-dataseed.binance.org", alias="BSC_RPC_URL")
+    usdt_bep20_contract: str = Field(
+        "",
+        alias="USDT_BEP20_CONTRACT",
+    )
     bep20_usdt_contract: str = Field(
         "0x55d398326f99059fF775485246999027B3197955",
         alias="BEP20_USDT_CONTRACT",

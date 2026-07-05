@@ -16,7 +16,7 @@ from ..config import get_settings
 from ..db.session import SessionLocal
 from ..repositories import payments as payments_repo
 from ..repositories import products as products_repo
-from ..services.binance import BinanceVerificationError, find_binance_payment
+from ..services.payment_verification import verify_bep20_payment, verify_binance_payment
 from ..services.shop import BuyError, OutOfStock, buy_product_quantity
 from .states import ShopStates
 from ..ui import keyboards as kb
@@ -54,7 +54,17 @@ _BINANCE_ORDER_RE = re.compile(r"^\d{12,24}$")
 
 def _is_plausible_payment_reference(reference: str) -> bool:
     value = reference.strip()
-    return bool(_ETH_TX_RE.fullmatch(value) or _HEX_TX_RE.fullmatch(value))
+    return bool(
+        _ETH_TX_RE.fullmatch(value)
+        or _HEX_TX_RE.fullmatch(value)
+        or _BINANCE_PAY_TX_RE.fullmatch(value)
+        or _BINANCE_ORDER_RE.fullmatch(value)
+    )
+
+
+def _is_plausible_bep20_reference(reference: str) -> bool:
+    value = reference.strip()
+    return bool(_ETH_TX_RE.fullmatch(value))
 
 
 def _looks_like_binance_order_reference(reference: str) -> bool:
@@ -65,17 +75,13 @@ def _looks_like_binance_order_reference(reference: str) -> bool:
 def _invalid_txid_message(reference: str) -> str:
     if _looks_like_binance_order_reference(reference):
         return (
-            "That looks like a Binance Order ID / Pay ID. For automatic verification, "
-            "send the blockchain Transaction Hash (TxID) from the deposit details instead."
+            "That looks like a Binance Order ID / Pay ID. Please choose Binance Pay, "
+            "or send the BEP20 blockchain transaction hash for wallet payments."
         )
     return (
         "Only blockchain TxID hashes are accepted for auto-verification. "
         "Binance did not find this value as a deposit TxID."
     )
-
-
-def _payment_match_note(match, *, prefix: str = "auto matched Binance transaction") -> str:
-    return f"{prefix}; source={match.source}; ref:{match.reference}".strip()
 
 
 def _payment_rejection_reason(payment) -> str:
@@ -99,7 +105,11 @@ def _payment_rejection_reason(payment) -> str:
 def _payment_timing() -> tuple[int, int]:
     settings = get_settings()
     wait_seconds = max(10, int(settings.payment_verify_wait_seconds))
-    interval_seconds = max(1, min(int(settings.payment_verify_interval_seconds), wait_seconds))
+    configured_interval = int(settings.payment_verify_interval_seconds)
+    if wait_seconds <= 15:
+        interval_seconds = wait_seconds
+    else:
+        interval_seconds = min(max(15, configured_interval), 20, wait_seconds)
     return wait_seconds, interval_seconds
 
 
@@ -342,11 +352,21 @@ async def show_binance_payment(
         await cb.answer(f"Only {reserved} code(s) could be reserved. Please choose a smaller quantity.", show_alert=True)
         return
     settings = get_settings()
+    binance_id = settings.binance_uid.strip()
+    if not binance_id:
+        await products_repo.release_user_reservations(
+            session,
+            product_id=pid,
+            user_id=cb.from_user.id,
+        )
+        await cb.answer("Binance receiving UID is not configured.", show_alert=True)
+        return
     await state.set_state(ShopStates.waiting_binance_reference)
     await state.update_data(
         product_id=pid,
         qty=qty,
         reserved_product_id=pid,
+        payment_provider="binance_pay",
         payment_chat_id=cb.message.chat.id if cb.message else None,
         payment_message_id=cb.message.message_id if cb.message else None,
         tx_attempts=0,
@@ -359,14 +379,78 @@ async def show_binance_payment(
             duration=product.duration_label,
             qty=qty,
             price_each=Decimal(str(product.price_usdt)),
-            binance_id=settings.binance_uid or "526944888",
+            binance_id=binance_id,
         ),
         keyboard=kb.binance_payment_kb(pid, qty),
     )
     await cb.answer()
 
 
+@router.callback_query(F.data.startswith(f"{kb.CB_PAY_BEP20}:"))
+async def show_bep20_payment(
+    cb: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+) -> None:
+    _, _, pid_s, qty_s = cb.data.split(":")
+    pid = int(pid_s)
+    qty = int(qty_s)
+    product = await products_repo.get_product(session, pid)
+    if product is None or not product.is_active:
+        await cb.answer("Unavailable.", show_alert=True)
+        return
+    reserved = await products_repo.reserve_stock_items(
+        session,
+        product_id=pid,
+        user_id=cb.from_user.id,
+        qty=qty,
+        ttl_minutes=10,
+    )
+    if reserved < qty:
+        await products_repo.release_user_reservations(
+            session,
+            product_id=pid,
+            user_id=cb.from_user.id,
+        )
+        await cb.answer(f"Only {reserved} code(s) could be reserved. Please choose a smaller quantity.", show_alert=True)
+        return
+    settings = get_settings()
+    wallet_address = settings.receiving_wallet_address or settings.bep20_wallet_address
+    if not wallet_address:
+        await products_repo.release_user_reservations(
+            session,
+            product_id=pid,
+            user_id=cb.from_user.id,
+        )
+        await cb.answer("BEP20 wallet is not configured.", show_alert=True)
+        return
+    await state.set_state(ShopStates.waiting_bep20_reference)
+    await state.update_data(
+        product_id=pid,
+        qty=qty,
+        reserved_product_id=pid,
+        payment_provider="bep20",
+        payment_chat_id=cb.message.chat.id if cb.message else None,
+        payment_message_id=cb.message.message_id if cb.message else None,
+        tx_attempts=0,
+    )
+    await render_from_callback(
+        cb,
+        session=session,
+        text=texts.bep20_payment_instructions(
+            name=product.display_name,
+            duration=product.duration_label,
+            qty=qty,
+            price_each=Decimal(str(product.price_usdt)),
+            wallet_address=wallet_address,
+        ),
+        keyboard=kb.bep20_payment_kb(pid, qty),
+    )
+    await cb.answer()
+
+
 @router.message(ShopStates.waiting_binance_reference)
+@router.message(ShopStates.waiting_bep20_reference)
 async def receive_binance_reference(
     message: Message,
     session: AsyncSession,
@@ -374,10 +458,19 @@ async def receive_binance_reference(
 ) -> None:
     reference = (message.text or "").strip()
     if not reference:
-        await message.answer("Please send the blockchain Transaction Hash (TxID).")
+        await message.answer("Please send the payment Order ID / TxID / transaction hash.")
         return
-    plausible_reference = _is_plausible_payment_reference(reference)
     data = await state.get_data()
+    provider = str(data.get("payment_provider") or "binance_pay")
+    duplicate_payment = await payments_repo.get_reference(session, reference=reference)
+    if duplicate_payment is not None:
+        await message.answer("⚠️ This transaction has already been submitted.")
+        return
+    plausible_reference = (
+        _is_plausible_bep20_reference(reference)
+        if provider == "bep20"
+        else _is_plausible_payment_reference(reference)
+    )
     tx_attempts = int(data.get("tx_attempts") or 0)
     active_payment_id = data.get("active_payment_id")
     if active_payment_id:
@@ -455,7 +548,7 @@ async def receive_binance_reference(
         session,
         user_id=message.from_user.id,
         product_id=pid,
-        provider="binance_pay",
+        provider=provider,
         reference=reference,
         qty=qty,
         expected_amount_usdt=expected,
@@ -468,56 +561,30 @@ async def receive_binance_reference(
     )
     if not plausible_reference:
         log.info(
-            "payment_verify unusual_reference_one_shot payment_id=%s user_id=%s reference=%r",
+            "payment_verify invalid_reference_manual_review payment_id=%s user_id=%s provider=%s reference=%r",
             payment.id,
             message.from_user.id,
+            provider,
             reference,
         )
-        try:
-            match = await _lookup_payment_match(session, payment)
-        except BinanceVerificationError as e:
-            await payments_repo.mark_rejected(
-                session,
-                payment,
-                status="invalid_reference",
-                note=str(e),
-            )
-            if tx_attempts >= MAX_TX_ATTEMPTS:
-                await _release_payment_reservation(session, payment)
-                await state.clear()
-            await message.answer(_invalid_txid_message(reference))
-            return
-        if match is None:
-            await payments_repo.mark_rejected(
-                session,
-                payment,
-                status="invalid_reference",
-                note="unusual reference format; no Binance match on one-shot lookup",
-            )
-            if tx_attempts >= MAX_TX_ATTEMPTS:
-                await _release_payment_reservation(session, payment)
-                await state.clear()
-            await message.answer(_invalid_txid_message(reference))
-            return
-        await payments_repo.mark_auto_verified(
+        await payments_repo.mark_rejected(
             session,
             payment,
-            received_amount=match.amount,
-            note=_payment_match_note(match, prefix="auto matched Binance transaction from unusual reference format"),
+            status="manual_review",
+            note=f"invalid or unusual {provider} reference format; needs admin review",
         )
         progress = await message.answer(
-            texts.payment_verified_detail(amount=match.amount, reference=payment.reference),
+            texts.manual_review_submitted(payment_id=payment.id, reference=payment.reference),
             parse_mode="HTML",
             disable_web_page_preview=True,
         )
         _ACTIVE_PAYMENT_BY_MESSAGE[(message.chat.id, progress.message_id)] = payment.id
-        await _deliver_verified_payment(
+        await _send_payment_manual_review(
             bot=message.bot,
             session=session,
             payment=payment,
             chat_id=message.chat.id,
             message_id=progress.message_id,
-            amount=match.amount,
         )
         await state.clear()
         return
@@ -534,7 +601,7 @@ async def receive_binance_reference(
     verifying_text = texts.payment_verifying(
         reference=reference,
         progress_pct=0,
-        remaining_text=f"~{wait_seconds}s",
+        remaining_text=_format_remaining(wait_seconds),
     )
     if tx_attempts < MAX_TX_ATTEMPTS:
         verifying_text += (
@@ -682,6 +749,29 @@ async def _verify_payment_background(
     chat_id: int,
     message_id: int,
 ) -> None:
+    try:
+        await _verify_payment_background_inner(bot, payment_id, chat_id, message_id)
+    except Exception:
+        log.exception("payment_verify unexpected_error payment_id=%s", payment_id)
+        async with SessionLocal() as session:
+            payment = await payments_repo.get_payment_verification(session, payment_id)
+            if payment is None or payment.status in PAYMENT_STOP_STATUSES:
+                return
+            await payments_repo.mark_rejected(
+                session,
+                payment,
+                status="manual_review",
+                note="automatic verification error; needs admin review",
+            )
+            await _send_payment_manual_review(bot, session, payment, chat_id, message_id)
+
+
+async def _verify_payment_background_inner(
+    bot: Bot,
+    payment_id: int,
+    chat_id: int,
+    message_id: int,
+) -> None:
     async with SessionLocal() as session:
         payment = await payments_repo.get_payment_verification(session, payment_id)
         if payment is None:
@@ -699,7 +789,7 @@ async def _verify_payment_background(
         checks = [
             (
                 min(100, int(elapsed / wait_seconds * 100)),
-                f"~{max(0, wait_seconds - elapsed)}s",
+                _format_remaining(max(0, wait_seconds - elapsed)),
                 0 if elapsed == 0 else interval_seconds,
             )
             for elapsed in range(0, wait_seconds + 1, interval_seconds)
@@ -712,135 +802,108 @@ async def _verify_payment_background(
             payment = await payments_repo.get_payment_verification(session, payment_id)
             if payment is None or payment.status in PAYMENT_STOP_STATUSES:
                 return
-            try:
-                match = await _lookup_payment_match(session, payment)
-            except BinanceVerificationError as e:
-                await payments_repo.mark_rejected(
-                    session,
-                    payment,
-                    status="auto_failed",
-                    note=str(e),
-                )
-                await products_repo.release_user_reservations(
-                    session,
-                    product_id=payment.product_id,
-                    user_id=payment.user_id,
-                )
-                await _send_payment_rejected(bot, payment, chat_id, message_id)
-                return
+            verified = await _verify_payment_reference(session, payment)
             payment = await payments_repo.get_payment_verification(session, payment_id)
             if payment is None or payment.status in PAYMENT_STOP_STATUSES:
                 return
-            if match is not None:
+            if verified:
                 log.info(
-                    "payment_verify matched payment_id=%s amount=%s asset=%s reference=%s source=%s identifiers=%s",
+                    "payment_verify matched payment_id=%s provider=%s amount=%s reference=%s",
                     payment.id,
-                    match.amount,
-                    match.asset,
+                    payment.provider,
+                    payment.received_amount_usdt,
                     payment.reference,
-                    match.source,
-                    (match.reference,),
                 )
-                await payments_repo.mark_auto_verified(
+                await payments_repo.mark_manual_approved(
                     session,
                     payment,
-                    received_amount=match.amount,
-                    note=_payment_match_note(match),
+                    admin_id=0,
+                    note=payment.verification_note or "automatic payment verification approved",
+                    received_amount=payment.received_amount_usdt or payment.expected_amount_usdt,
                 )
-                await _deliver_verified_payment(bot, session, payment, chat_id, message_id, match.amount)
+                await _deliver_verified_payment(
+                    bot,
+                    session,
+                    payment,
+                    chat_id,
+                    message_id,
+                    payment.received_amount_usdt or payment.expected_amount_usdt,
+                )
                 return
 
         await asyncio.sleep(interval_seconds)
         payment = await payments_repo.get_payment_verification(session, payment_id)
         if payment is None or payment.status in PAYMENT_STOP_STATUSES:
             return
-        try:
-            match = await _lookup_payment_match(session, payment)
-        except BinanceVerificationError as e:
-            await payments_repo.mark_rejected(
-                session,
-                payment,
-                status="auto_failed",
-                note=str(e),
-            )
-            await products_repo.release_user_reservations(
-                session,
-                product_id=payment.product_id,
-                user_id=payment.user_id,
-            )
-            await _send_payment_rejected(bot, payment, chat_id, message_id)
-            return
+        verified = await _verify_payment_reference(session, payment)
         payment = await payments_repo.get_payment_verification(session, payment_id)
         if payment is None or payment.status in PAYMENT_STOP_STATUSES:
             return
-        if match is not None:
+        if verified:
             log.info(
-                "payment_verify matched payment_id=%s amount=%s asset=%s reference=%s source=%s identifiers=%s",
+                "payment_verify matched payment_id=%s provider=%s amount=%s reference=%s",
                 payment.id,
-                match.amount,
-                match.asset,
+                payment.provider,
+                payment.received_amount_usdt,
                 payment.reference,
-                match.source,
-                (match.reference,),
             )
-            await payments_repo.mark_auto_verified(
+            await payments_repo.mark_manual_approved(
                 session,
                 payment,
-                received_amount=match.amount,
-                note=_payment_match_note(match),
+                admin_id=0,
+                note=payment.verification_note or "automatic payment verification approved",
+                received_amount=payment.received_amount_usdt or payment.expected_amount_usdt,
             )
-            await _deliver_verified_payment(bot, session, payment, chat_id, message_id, match.amount)
+            await _deliver_verified_payment(
+                bot,
+                session,
+                payment,
+                chat_id,
+                message_id,
+                payment.received_amount_usdt or payment.expected_amount_usdt,
+            )
             return
 
         log.info(
-            "payment_verify appeal_available payment_id=%s reason=no_match wait_seconds=%s lookback_hours=%s reference=%s",
+            "payment_verify manual_review payment_id=%s provider=%s wait_seconds=%s reference=%s note=%s",
             payment.id,
+            payment.provider,
             wait_seconds,
-            get_settings().payment_lookback_hours,
             payment.reference,
+            payment.verification_note,
         )
         await payments_repo.mark_rejected(
             session,
             payment,
-            status="auto_rejected",
-            note=(
-                f"no matching Binance transaction after {wait_seconds}s; "
-                f"lookback_hours={get_settings().payment_lookback_hours}"
-            ),
+            status="manual_review",
+            note=payment.verification_note or f"no matching {payment.provider} transaction after {wait_seconds}s",
         )
-        await _send_payment_rejected(bot, payment, chat_id, message_id)
+        await _send_payment_manual_review(bot, session, payment, chat_id, message_id)
 
 
-async def _lookup_payment_match(session: AsyncSession, payment):
+async def _verify_payment_reference(session: AsyncSession, payment) -> bool:
     settings = get_settings()
     if settings.payment_check_duplicate_txid:
-        duplicate_payment = await payments_repo.get_completed_reference_in_note(
+        duplicate_payment = await payments_repo.get_completed_reference(
             session,
             provider=payment.provider,
-            identifiers=(payment.reference,),
+            reference=payment.reference,
             exclude_id=payment.id,
         )
         if duplicate_payment is not None:
-            raise BinanceVerificationError(f"duplicate TxID already used by payment #{duplicate_payment.id}")
-    try:
-        log.info(
-            "payment_verify lookup payment_id=%s reference=%s expected=%s require_amount_match=%s check_duplicate_txid=%s lookback_hours=%s",
-            payment.id,
-            payment.reference,
-            payment.expected_amount_usdt,
-            settings.payment_require_amount_match,
-            settings.payment_check_duplicate_txid,
-            settings.payment_lookback_hours,
-        )
-        return await find_binance_payment(
-            reference=payment.reference,
-            expected_amount=Decimal(str(payment.expected_amount_usdt)),
-            require_amount_match=settings.payment_require_amount_match,
-            lookback_hours=settings.payment_lookback_hours,
-        )
-    except BinanceVerificationError as e:
-        log.warning("payment_verify binance_error payment_id=%s reference=%s error=%s", payment.id, payment.reference, e)
-        raise
+            payment.verification_note = f"duplicate TxID already used by payment #{duplicate_payment.id}"
+            return False
+    log.info(
+        "payment_verify lookup payment_id=%s provider=%s reference=%s expected=%s check_duplicate_txid=%s",
+        payment.id,
+        payment.provider,
+        payment.reference,
+        payment.expected_amount_usdt,
+        settings.payment_check_duplicate_txid,
+    )
+    if payment.provider == "bep20":
+        return await verify_bep20_payment(payment.reference, payment)
+    return await verify_binance_payment(payment.reference, payment)
 
 
 async def _release_state_reservation(
@@ -856,6 +919,12 @@ async def _release_state_reservation(
             product_id=int(product_id),
             user_id=user_id,
         )
+
+
+def _format_remaining(seconds: int) -> str:
+    minutes, secs = divmod(max(0, int(seconds)), 60)
+    return f"~{minutes}m {secs}s"
+
 
 async def _edit_payment_progress(
     bot: Bot,
@@ -950,7 +1019,11 @@ async def _deliver_verified_payment(
         await bot.edit_message_text(
             chat_id=chat_id,
             message_id=message_id,
-            text=texts.payment_verified_detail(amount=amount, reference=payment.reference),
+            text=texts.payment_verified_detail(
+                amount=amount,
+                reference=payment.reference,
+                network="USDT BEP20" if payment.provider == "bep20" else "USDT Binance Pay",
+            ),
             parse_mode="HTML",
             disable_web_page_preview=True,
         )

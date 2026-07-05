@@ -61,6 +61,23 @@ async def get_completed_reference(
     return await session.scalar(stmt)
 
 
+async def get_reference(
+    session: AsyncSession,
+    *,
+    reference: str,
+    exclude_id: int | None = None,
+) -> PaymentVerification | None:
+    stmt = (
+        select(PaymentVerification)
+        .where(PaymentVerification.reference == reference)
+        .order_by(desc(PaymentVerification.id))
+        .limit(1)
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(PaymentVerification.id != exclude_id)
+    return await session.scalar(stmt)
+
+
 async def get_completed_reference_in_note(
     session: AsyncSession,
     *,

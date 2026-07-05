@@ -54,6 +54,7 @@ CB_ORDER_SUMMARY = "shop:os"    # shop:os:<product_id>:<qty>
 CB_PAY_DIRECT = "shop:pd"       # shop:pd:<product_id>:<qty>
 CB_PAY_METHODS = "shop:pm"      # shop:pm:<product_id>:<qty>
 CB_PAY_BINANCE = "shop:pb"      # shop:pb:<product_id>:<qty>
+CB_PAY_BEP20 = "shop:pc"        # shop:pc:<product_id>:<qty>
 CB_CANCEL_ORDER = "shop:cx"     # shop:cx:<product_id>
 CB_MANUAL_REVIEW = "shop:mr"    # shop:mr:<payment_id>
 CB_ADMIN_PAY_APPROVE = "adm:pa" # adm:pa:<payment_id>
@@ -333,6 +334,10 @@ def payment_methods_kb(product_id: int, qty: int) -> InlineKeyboardMarkup:
                 "Binance Pay", icon="binance", style="success",
                 callback_data=f"{CB_PAY_BINANCE}:{product_id}:{qty}",
             )),
+            _row(btn(
+                "USDT BEP20", icon="coin", style="success",
+                callback_data=f"{CB_PAY_BEP20}:{product_id}:{qty}",
+            )),
             _row(
                 btn("Back", icon="back", style="success", callback_data=f"{CB_ORDER_SUMMARY}:{product_id}:{qty}"),
                 btn(
@@ -345,6 +350,20 @@ def payment_methods_kb(product_id: int, qty: int) -> InlineKeyboardMarkup:
 
 
 def binance_payment_kb(product_id: int, qty: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            _row(
+                btn("Back", icon="back", style="success", callback_data=f"{CB_PAY_METHODS}:{product_id}:{qty}"),
+                btn(
+                    "Cancel Order", icon="cross", style="danger",
+                    callback_data=f"{CB_CANCEL_ORDER}:{product_id}",
+                ),
+            ),
+        ]
+    )
+
+
+def bep20_payment_kb(product_id: int, qty: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             _row(

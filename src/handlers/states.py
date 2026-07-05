@@ -18,6 +18,7 @@ class AdminStates(StatesGroup):
 class ShopStates(StatesGroup):
     waiting_custom_qty = State()
     waiting_binance_reference = State()
+    waiting_bep20_reference = State()
 
 
 class DepositStates(StatesGroup):

@@ -775,6 +775,7 @@ async def _approve_payment(
             texts.payment_verified_detail(
                 amount=payment.received_amount_usdt or payment.expected_amount_usdt,
                 reference=payment.reference,
+                network="USDT BEP20" if payment.provider == "bep20" else "USDT Binance Pay",
             ),
             parse_mode="HTML",
         )

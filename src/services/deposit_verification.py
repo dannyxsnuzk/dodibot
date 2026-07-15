@@ -227,7 +227,11 @@ async def query_binance_pay_transaction(
             continue
         amount = _decimal(row.get("amount"))
         if amount <= 0:
-            raise DepositVerificationError("not_success", "The transaction is not incoming.")
+            raise DepositVerificationError(
+                "not_success",
+                "This transfer is outgoing in the configured Binance API account. "
+                "Use API credentials for the Binance UID receiving the payment.",
+            )
         currency = str(row.get("currency") or "").upper()
         if currency != "USDT":
             raise DepositVerificationError("wrong_currency", "Only USDT deposits are accepted.")

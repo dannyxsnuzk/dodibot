@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     binance_uid: str = Field(
         "",
-        validation_alias=AliasChoices("BINANCE_RECEIVING_UID", "BINANCE_UID"),
+        validation_alias=AliasChoices("BINANCE_UID", "BINANCE_RECEIVING_UID"),
     )
     binance_api_key: str = Field("", alias="BINANCE_API_KEY")
     binance_api_secret: str = Field("", alias="BINANCE_API_SECRET")

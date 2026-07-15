@@ -262,7 +262,7 @@ async def verify_bep20_payment(tx_hash: str, payment: VerificationTarget) -> boo
 
 async def _query_bscscan_transfer(txid: str, expected: Decimal) -> ProviderResult:
     settings = get_settings()
-    wallet = (settings.receiving_wallet_address or settings.bep20_wallet_address).strip().lower()
+    wallet = (settings.bep20_wallet_address or settings.receiving_wallet_address).strip().lower()
     contract = (settings.usdt_bep20_contract or settings.bep20_usdt_contract).strip().lower()
     if len(txid) != 66 or not txid.startswith("0x"):
         return ProviderResult(False, False, "Invalid BEP20 transaction hash.")

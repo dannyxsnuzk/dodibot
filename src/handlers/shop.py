@@ -521,7 +521,7 @@ async def show_bep20_payment(
         await cb.answer(f"Only {reserved} code(s) could be reserved. Please choose a smaller quantity.", show_alert=True)
         return
     settings = get_settings()
-    wallet_address = settings.receiving_wallet_address or settings.bep20_wallet_address
+    wallet_address = settings.bep20_wallet_address or settings.receiving_wallet_address
     if not wallet_address:
         await products_repo.release_user_reservations(
             session,

@@ -109,9 +109,10 @@ BOT_USERNAME={BOT_USERNAME}
 SHOP_NAME={SHOP_NAME}
 SUPPORT_USERNAME={SUPPORT_USERNAME}
 
-# Manual deposit destination shown to users
-BINANCE_RECEIVING_UID=
+# Manual deposit destination shown to users. BINANCE_UID is preferred;
+# BINANCE_RECEIVING_UID is only a backward-compatible fallback.
 BINANCE_UID=
+BINANCE_RECEIVING_UID=
 
 # Binance SAPI credentials for automatic Binance Pay / UID-transfer verification.
 # BINANCE_API_SECRET is the preferred name. BINANCE_SECRET_KEY is kept for
@@ -132,10 +133,10 @@ BSCSCAN_API_KEY=
 BSCSCAN_API_BASE_URL=https://api.bscscan.com/api
 
 # Wallet-deposit configuration (also editable in Admin > Deposits)
-# RECEIVING_WALLET_ADDRESS and USDT_BEP20_CONTRACT are used by the shop auto-verifier.
-# BEP20_WALLET_ADDRESS and BEP20_USDT_CONTRACT are kept for existing deposit flows.
-RECEIVING_WALLET_ADDRESS=
+# BEP20_WALLET_ADDRESS is the primary wallet for deposits and shop payments.
+# RECEIVING_WALLET_ADDRESS is only a backward-compatible fallback.
 BEP20_WALLET_ADDRESS=
+RECEIVING_WALLET_ADDRESS=
 BSC_RPC_URL=https://bsc-dataseed.binance.org
 USDT_BEP20_CONTRACT=0x55d398326f99059fF775485246999027B3197955
 BEP20_USDT_CONTRACT=0x55d398326f99059fF775485246999027B3197955

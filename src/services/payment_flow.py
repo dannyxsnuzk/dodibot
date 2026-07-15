@@ -62,20 +62,15 @@ def detect_reference_provider(reference: str) -> str | None:
 
 
 def bep20_reference_error(reference: str) -> str | None:
-    """Explain Binance withdrawal IDs without treating them as chain hashes."""
+    """Allow BSC hashes and Binance off-chain references from the BEP20 screen."""
     value = reference.strip()
     if _ETH_TX_RE.fullmatch(value):
         return None
-    if value.isdigit() or _BINANCE_PAY_TX_RE.fullmatch(value):
-        return (
-            "This is a Binance Order/Withdrawal ID, not a BEP20 blockchain TxID. "
-            "Open Binance > Withdraw History > select this transfer > copy the "
-            "TxID / Transaction Hash (it starts with 0x) and send it here. "
-            "For an internal Binance Pay transfer, go back and choose Binance Pay."
-        )
+    if is_plausible_reference("binance_pay", value):
+        return None
     return (
-        "Please send the BEP20 blockchain TxID. It must start with 0x and contain "
-        "64 hexadecimal characters after 0x."
+        "Please send a BEP20 blockchain TxID (starts with 0x), or a Binance "
+        "Order ID for an off-chain Binance transfer."
     )
 
 

@@ -7,8 +7,10 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "aiogram>=3.13,<4",
+    "aiohttp>=3.9,<4",
     "SQLAlchemy>=2.0,<3",
     "aiosqlite>=0.20",
+    "asyncpg>=0.29.0",
     "pydantic>=2.7,<3",
     "pydantic-settings>=2.4",
     "python-dotenv>=1.0",

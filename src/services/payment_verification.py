@@ -119,7 +119,7 @@ async def verify_binance_payment(order_or_tx_id: str, payment: VerificationTarge
 
     expected = _amount_expected(payment)
     end_ms = int(time.time() * 1000)
-    lookback_hours = max(24, int(settings.payment_lookback_hours or 48))
+    lookback_hours = min(max(1, int(settings.payment_lookback_hours or 1)), 2)
     start_ms = int((datetime.now(timezone.utc) - timedelta(hours=lookback_hours)).timestamp() * 1000)
 
     for attempt in range(1, 3):
@@ -287,6 +287,21 @@ async def _query_bscscan_transfer(txid: str, expected: Decimal) -> ProviderResul
     block_hex = receipt.payload.get("blockNumber")
     if not block_hex:
         return ProviderResult(False, True, "BEP20 transaction block is not available yet.")
+    block = await _bscscan_proxy(
+        "eth_getBlockByNumber", tag=str(block_hex), boolean="false"
+    )
+    if not block.ok or not isinstance(block.payload, dict):
+        return ProviderResult(False, True, "BEP20 transaction timestamp is not available.")
+    try:
+        block_time = datetime.fromtimestamp(
+            int(str(block.payload.get("timestamp") or ""), 16), tz=timezone.utc
+        )
+    except (TypeError, ValueError):
+        return ProviderResult(False, True, "BscScan returned an invalid block timestamp.")
+    max_age = timedelta(hours=min(max(1, int(settings.payment_lookback_hours or 1)), 2))
+    now = datetime.now(timezone.utc)
+    if block_time < now - max_age or block_time > now + timedelta(minutes=2):
+        return ProviderResult(False, False, "BEP20 transaction is outside the payment verification window.")
     confirmations = max(0, int(latest.payload, 16) - int(str(block_hex), 16) + 1)
     required = max(3, min(int(settings.deposit_required_confirmations or 3), 6))
     if confirmations < required:

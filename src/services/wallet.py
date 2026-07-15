@@ -16,6 +16,7 @@ async def credit(
     kind: str,
     ref_id: int | None = None,
     note: str = "",
+    commit: bool = True,
 ) -> User:
     user = await session.get(User, user_id)
     if user is None:
@@ -24,7 +25,8 @@ async def credit(
     session.add(Transaction(
         user_id=user_id, kind=kind, amount_usdt=amount, ref_id=ref_id, note=note,
     ))
-    await session.commit()
+    if commit:
+        await session.commit()
     return user
 
 
@@ -36,6 +38,7 @@ async def debit(
     kind: str,
     ref_id: int | None = None,
     note: str = "",
+    commit: bool = True,
 ) -> User:
     user = await session.get(User, user_id)
     if user is None:
@@ -46,5 +49,6 @@ async def debit(
     session.add(Transaction(
         user_id=user_id, kind=kind, amount_usdt=-amount, ref_id=ref_id, note=note,
     ))
-    await session.commit()
+    if commit:
+        await session.commit()
     return user

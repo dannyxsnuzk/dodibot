@@ -8,6 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db.models import Order, Product, StockItem
 
 
+def _lock_stock_rows(session: AsyncSession, stmt):
+    """Use row locks on transactional databases; SQLite serializes writers itself."""
+    if session.get_bind().dialect.name != "sqlite":
+        return stmt.with_for_update(skip_locked=True)
+    return stmt
+
+
 async def list_active_products_with_stock(
     session: AsyncSession,
     *,
@@ -127,15 +134,15 @@ async def delete_product(session: AsyncSession, product_id: int) -> tuple[bool, 
 async def pop_one_stock_item(session: AsyncSession, product_id: int) -> StockItem | None:
     """Atomically reserve & sell one available stock item.
 
-    Uses a re-read inside a transaction. Good enough for SQLite with low contention.
-    For Postgres we could add ``with_for_update(skip_locked=True)``.
+    Locks rows on transactional databases so simultaneous checkouts cannot sell
+    the same stock item.
     """
     async with session.begin_nested():
         item = await session.scalar(
-            select(StockItem)
+            _lock_stock_rows(session, select(StockItem)
             .where(StockItem.product_id == product_id, StockItem.status == "available")
             .order_by(StockItem.id)
-            .limit(1)
+            .limit(1))
         )
         if item is None:
             return None
@@ -178,10 +185,10 @@ async def reserve_stock_items(
     needed = qty - current
     until = datetime.now(timezone.utc) + timedelta(minutes=ttl_minutes)
     items = list((await session.scalars(
-        select(StockItem)
+        _lock_stock_rows(session, select(StockItem)
         .where(StockItem.product_id == product_id, StockItem.status == "available")
         .order_by(StockItem.id)
-        .limit(needed)
+        .limit(needed))
     )).all())
     for item in items:
         item.status = "reserved"
@@ -239,7 +246,7 @@ async def pop_one_reserved_or_available_stock_item(
     async with session.begin_nested():
         now = datetime.now(timezone.utc)
         item = await session.scalar(
-            select(StockItem)
+            _lock_stock_rows(session, select(StockItem)
             .where(
                 StockItem.product_id == product_id,
                 StockItem.status == "reserved",
@@ -247,14 +254,14 @@ async def pop_one_reserved_or_available_stock_item(
                 StockItem.reserved_until > now,
             )
             .order_by(StockItem.id)
-            .limit(1)
+            .limit(1))
         )
         if item is None:
             item = await session.scalar(
-                select(StockItem)
+                _lock_stock_rows(session, select(StockItem)
                 .where(StockItem.product_id == product_id, StockItem.status == "available")
                 .order_by(StockItem.id)
-                .limit(1)
+                .limit(1))
             )
         if item is None:
             return None

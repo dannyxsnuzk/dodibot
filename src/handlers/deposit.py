@@ -73,7 +73,10 @@ async def binance_start(
         await cb.answer("Binance UID is not configured.", show_alert=True)
         return
     await state.clear()
-    await state.update_data(verification_method="auto_binance")
+    await state.update_data(
+        verification_method="auto_binance",
+        deposit_started_at=datetime.now(timezone.utc).isoformat(),
+    )
     await state.set_state(DepositStates.waiting_uid_order_id)
     await render_from_callback(
         cb,
@@ -258,7 +261,13 @@ async def binance_order_input(
             ),
             lambda text: _render_for_message(message, session, text),
         )
-        _validate_binance_match(order, match.amount, match.paid_at, settings)
+        _validate_binance_match(
+            order,
+            match.amount,
+            match.paid_at,
+            settings,
+            started_at=_deposit_started_at(data),
+        )
         balance = await deposits_repo.finalize_binance(
             session, order, submitted_order_id=reference, match=match
         )
@@ -299,6 +308,7 @@ async def bep20_start(
         await cb.answer("BEP20 wallet is not configured.", show_alert=True)
         return
     await state.clear()
+    await state.update_data(deposit_started_at=datetime.now(timezone.utc).isoformat())
     await state.set_state(DepositStates.waiting_bep20_txid)
     await render_from_callback(
         cb,
@@ -410,7 +420,12 @@ async def bep20_txid(
             match = await run_with_progress(
                 reference,
                 retry_operation(
-                    lambda: verify_bep20_tx(reference, expected_amount, settings)
+                    lambda: verify_bep20_tx(
+                        reference,
+                        expected_amount,
+                        settings,
+                        not_before=_deposit_started_at(data),
+                    )
                 ),
                 lambda text: _render_for_message(message, session, text),
             )
@@ -424,7 +439,13 @@ async def bep20_txid(
                 ),
                 lambda text: _render_for_message(message, session, text),
             )
-            _validate_binance_match(order, match.amount, match.paid_at, settings)
+            _validate_binance_match(
+                order,
+                match.amount,
+                match.paid_at,
+                settings,
+                started_at=_deposit_started_at(data),
+            )
             balance = await deposits_repo.finalize_binance(
                 session, order, submitted_order_id=reference, match=match
             )
@@ -469,7 +490,12 @@ async def _parse_amount(message: Message) -> Decimal | None:
 
 
 def _validate_binance_match(
-    order, amount: Decimal, paid_at: datetime, settings: DepositSettings
+    order,
+    amount: Decimal,
+    paid_at: datetime,
+    settings: DepositSettings,
+    *,
+    started_at: datetime | None = None,
 ) -> None:
     _validate_deposit_amount(amount)
     if order.expected_amount is not None and amount != Decimal(str(order.expected_amount)):
@@ -482,6 +508,23 @@ def _validate_binance_match(
         raise DepositVerificationError(
             "expired", "The deposit is outside the allowed verification window."
         )
+    if started_at is not None and paid_at < started_at - timedelta(minutes=2):
+        raise DepositVerificationError(
+            "expired", "This payment was made before the current deposit session started."
+        )
+
+
+def _deposit_started_at(data: dict) -> datetime | None:
+    raw = data.get("deposit_started_at")
+    if not isinstance(raw, str):
+        return None
+    try:
+        started = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    if started.tzinfo is None:
+        return started.replace(tzinfo=timezone.utc)
+    return started.astimezone(timezone.utc)
 
 
 def _validate_deposit_amount(amount: Decimal) -> None:

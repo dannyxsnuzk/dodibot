@@ -4,9 +4,14 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from sqlalchemy import desc, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..db.models import PaymentVerification
+from ..db.models import PaymentReferenceClaim, PaymentVerification
+
+
+class PaymentReferenceAlreadyUsed(Exception):
+    pass
 
 
 async def create_payment_verification(
@@ -29,7 +34,17 @@ async def create_payment_verification(
         status="pending",
     )
     session.add(rec)
-    await session.commit()
+    try:
+        await session.flush()
+        session.add(PaymentReferenceClaim(
+            payment_id=rec.id,
+            provider=provider,
+            reference=reference,
+        ))
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise PaymentReferenceAlreadyUsed("Payment reference was already submitted.") from exc
     await session.refresh(rec)
     return rec
 

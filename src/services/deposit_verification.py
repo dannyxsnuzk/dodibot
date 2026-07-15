@@ -9,7 +9,7 @@ import secrets
 import string
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode
 
@@ -232,6 +232,11 @@ async def query_binance_pay_transaction(
                 "This transfer is outgoing in the configured Binance API account. "
                 "Use API credentials for the Binance UID receiving the payment.",
             )
+        status = str(row.get("status") or "").upper()
+        if status and status not in {"SUCCESS", "PAID"}:
+            raise DepositVerificationError(
+                "not_success", f"Binance transaction status is {status}."
+            )
         currency = str(row.get("currency") or "").upper()
         if currency != "USDT":
             raise DepositVerificationError("wrong_currency", "Only USDT deposits are accepted.")
@@ -260,6 +265,8 @@ async def verify_bep20_tx(
     txid: str,
     expected_amount: Decimal | None,
     settings: DepositSettings,
+    *,
+    not_before: datetime | None = None,
 ) -> Bep20Match:
     cleaned = txid.strip().lower()
     if not TXID_RE.fullmatch(cleaned):
@@ -284,6 +291,38 @@ async def verify_bep20_tx(
 
     block_number = int(receipt.get("blockNumber", "0x0"), 16)
     latest = int(latest_hex, 16)
+    block_result = await _rpc_batch(
+        settings.bsc_rpc_url,
+        [("eth_getBlockByNumber", [hex(block_number), False])],
+    )
+    block = block_result[0] if block_result else None
+    if not isinstance(block, dict):
+        raise DepositVerificationError(
+            "provider_error", "BNB Smart Chain block timestamp is unavailable."
+        )
+    try:
+        block_time = datetime.fromtimestamp(
+            int(str(block.get("timestamp") or ""), 16), tz=timezone.utc
+        )
+    except (TypeError, ValueError):
+        raise DepositVerificationError(
+            "provider_error", "BNB Smart Chain returned an invalid block timestamp."
+        ) from None
+    now = datetime.now(timezone.utc)
+    if (
+        block_time < now - timedelta(minutes=settings.allowed_window_minutes)
+        or block_time > now + timedelta(minutes=2)
+    ):
+        raise DepositVerificationError(
+            "expired", "The BEP20 transaction is outside the allowed verification window."
+        )
+    if not_before is not None:
+        if not_before.tzinfo is None:
+            not_before = not_before.replace(tzinfo=timezone.utc)
+        if block_time < not_before.astimezone(timezone.utc) - timedelta(minutes=2):
+            raise DepositVerificationError(
+                "expired", "This transaction was made before the current deposit session started."
+            )
     confirmations = max(0, latest - block_number + 1)
     if confirmations < settings.required_confirmations:
         raise DepositVerificationError(

@@ -73,7 +73,7 @@ class Settings(BaseSettings):
         alias="PAYMENT_CHECK_DUPLICATE_TXID",
     )
     payment_lookback_hours: int = Field(
-        72,
+        1,
         alias="PAYMENT_LOOKBACK_HOURS",
     )
     payment_verify_wait_seconds: int = Field(

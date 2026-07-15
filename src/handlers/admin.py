@@ -392,6 +392,7 @@ async def approve_wd(message: Message, command: CommandObject, session: AsyncSes
     # Funds were already held when user submitted the request; just record the decision.
     await wd_repo.decide_withdrawal(
         session, withdrawal=w, approved=True, admin_id=message.from_user.id, admin_note=note,
+        commit=False,
     )
     session.add(Transaction(
         user_id=w.user_id, kind="withdrawal", amount_usdt=-Decimal(str(w.amount_usdt)),
@@ -430,10 +431,13 @@ async def reject_wd(message: Message, command: CommandObject, session: AsyncSess
         session, user_id=w.user_id, amount=Decimal(str(w.amount_usdt)),
         kind="withdrawal_refund", ref_id=w.id,
         note=f"withdrawal#{w.id} rejected: {note}",
+        commit=False,
     )
     await wd_repo.decide_withdrawal(
         session, withdrawal=w, approved=False, admin_id=message.from_user.id, admin_note=note,
+        commit=False,
     )
+    await session.commit()
     await message.answer(f"Rejected withdrawal #{w.id} — {w.amount_usdt:.2f} USDT refunded.")
     with contextlib.suppress(Exception):
         await message.bot.send_message(

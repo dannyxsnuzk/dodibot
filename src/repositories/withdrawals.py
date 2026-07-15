@@ -6,7 +6,11 @@ from decimal import Decimal
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..db.models import Withdrawal
+from ..db.models import User, Withdrawal
+
+
+class InsufficientWithdrawalBalance(Exception):
+    pass
 
 
 async def create_withdrawal(
@@ -30,6 +34,33 @@ async def create_withdrawal(
     return w
 
 
+async def create_withdrawal_with_hold(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    amount_usdt: Decimal,
+    method: str,
+    address: str,
+) -> Withdrawal:
+    user = await session.scalar(
+        select(User).where(User.id == user_id).with_for_update()
+    )
+    if user is None or Decimal(str(user.balance_usdt or 0)) < amount_usdt:
+        raise InsufficientWithdrawalBalance
+    user.balance_usdt = Decimal(str(user.balance_usdt or 0)) - amount_usdt
+    withdrawal = Withdrawal(
+        user_id=user_id,
+        amount_usdt=amount_usdt,
+        method=method,
+        address=address,
+        status="pending",
+    )
+    session.add(withdrawal)
+    await session.commit()
+    await session.refresh(withdrawal)
+    return withdrawal
+
+
 async def get_pending_withdrawals(session: AsyncSession, limit: int = 50) -> list[Withdrawal]:
     return list((await session.scalars(
         select(Withdrawal).where(Withdrawal.status == "pending").order_by(Withdrawal.id).limit(limit)
@@ -47,12 +78,14 @@ async def decide_withdrawal(
     approved: bool,
     admin_id: int,
     admin_note: str = "",
+    commit: bool = True,
 ) -> Withdrawal:
     withdrawal.status = "approved" if approved else "rejected"
     withdrawal.admin_note = admin_note
     withdrawal.decided_by = admin_id
     withdrawal.decided_at = datetime.now(timezone.utc)
-    await session.commit()
+    if commit:
+        await session.commit()
     return withdrawal
 
 

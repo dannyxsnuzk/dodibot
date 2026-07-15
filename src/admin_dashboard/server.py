@@ -60,6 +60,11 @@ def _make_session_cookie() -> str:
     return serializer.dumps({"a": True, "n": secrets.token_hex(8)})
 
 
+def _request_is_https(request: Request) -> bool:
+    forwarded = request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip()
+    return request.url.scheme == "https" or forwarded == "https"
+
+
 def _is_authed(request: Request) -> bool:
     cookie = request.cookies.get("dash_session")
     if not cookie:
@@ -96,13 +101,16 @@ async def login_form(request: Request, error: str | None = None) -> HTMLResponse
 
 
 @app.post("/login")
-async def login_submit(password: str = Form(...)) -> Response:
+async def login_submit(request: Request, password: str = Form(...)) -> Response:
     if not _check_password(password):
         return RedirectResponse("/login?error=1", status_code=303)
     resp = RedirectResponse("/", status_code=303)
     resp.set_cookie(
         "dash_session", _make_session_cookie(),
-        httponly=True, samesite="lax", max_age=60 * 60 * 24 * 7,
+        httponly=True,
+        samesite="lax",
+        secure=_request_is_https(request),
+        max_age=60 * 60 * 24 * 7,
     )
     return resp
 
@@ -309,7 +317,9 @@ async def withdrawals_approve(wid: int, note: str = Form(""),
     w = await wd_repo.get_withdrawal(db, wid)
     if w is None or w.status != "pending":
         raise HTTPException(404)
-    await wd_repo.decide_withdrawal(db, withdrawal=w, approved=True, admin_id=0, admin_note=note)
+    await wd_repo.decide_withdrawal(
+        db, withdrawal=w, approved=True, admin_id=0, admin_note=note, commit=False
+    )
     db.add(Transaction(user_id=w.user_id, kind="withdrawal",
                        amount_usdt=-Decimal(str(w.amount_usdt)),
                        ref_id=w.id, note=f"withdrawal#{w.id} approved"))
@@ -326,8 +336,11 @@ async def withdrawals_reject(wid: int, note: str = Form(""),
         raise HTTPException(404)
     await wallet.credit(db, user_id=w.user_id, amount=Decimal(str(w.amount_usdt)),
                         kind="withdrawal_refund", ref_id=w.id,
-                        note=f"withdrawal#{w.id} rejected: {note}")
-    await wd_repo.decide_withdrawal(db, withdrawal=w, approved=False, admin_id=0, admin_note=note)
+                        note=f"withdrawal#{w.id} rejected: {note}", commit=False)
+    await wd_repo.decide_withdrawal(
+        db, withdrawal=w, approved=False, admin_id=0, admin_note=note, commit=False
+    )
+    await db.commit()
     return RedirectResponse("/withdrawals", status_code=303)
 
 

@@ -670,15 +670,19 @@ async def receive_binance_reference(
         _total, _balance, _deduction, expected = await _order_amounts(
             session, user_id=message.from_user.id, product=product, qty=qty
         )
-    payment = await payments_repo.create_payment_verification(
-        session,
-        user_id=message.from_user.id,
-        product_id=pid,
-        provider=provider,
-        reference=reference,
-        qty=qty,
-        expected_amount_usdt=expected,
-    )
+    try:
+        payment = await payments_repo.create_payment_verification(
+            session,
+            user_id=message.from_user.id,
+            product_id=pid,
+            provider=provider,
+            reference=reference,
+            qty=qty,
+            expected_amount_usdt=expected,
+        )
+    except payments_repo.PaymentReferenceAlreadyUsed:
+        await message.answer("This transaction has already been submitted.")
+        return
     tx_attempts += 1
     await state.update_data(
         tx_attempts=tx_attempts,

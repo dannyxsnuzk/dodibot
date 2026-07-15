@@ -240,11 +240,14 @@ async def withdraw_address_input(message: Message, session: AsyncSession, state:
         await message.answer(f"{texts.pe('warning')} Insufficient balance.", parse_mode="HTML")
         await state.clear()
         return
-    user.balance_usdt = Decimal(str(user.balance_usdt)) - amount  # hold the funds
-    await session.commit()
-    w = await wd_repo.create_withdrawal(
-        session, user_id=user.id, amount_usdt=amount, method=method, address=text
-    )
+    try:
+        w = await wd_repo.create_withdrawal_with_hold(
+            session, user_id=user.id, amount_usdt=amount, method=method, address=text
+        )
+    except wd_repo.InsufficientWithdrawalBalance:
+        await message.answer(f"{texts.pe('warning')} Insufficient balance.", parse_mode="HTML")
+        await state.clear()
+        return
     await state.clear()
     if user.last_chat_id and user.last_menu_message_id:
         await render(

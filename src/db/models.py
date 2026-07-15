@@ -261,6 +261,23 @@ class PaymentVerification(Base):
     )
 
 
+class PaymentReferenceClaim(Base):
+    """One-time claim for a shop payment reference, including pending checks."""
+
+    __tablename__ = "payment_reference_claims"
+    __table_args__ = (
+        UniqueConstraint("provider", "reference", name="uq_payment_reference_claims_provider_reference"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    payment_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("payment_verifications.id"), unique=True
+    )
+    provider: Mapped[str] = mapped_column(String(32))
+    reference: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Setting(Base):
     """Generic key/value runtime configuration (broadcasts, banners, etc.)."""
 

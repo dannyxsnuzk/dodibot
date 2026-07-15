@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.db.base import Base
 from src.db.models import User
-from src.repositories import deposits
+from src.repositories import deposits, payments
 from src.services.deposit_settings import (
     DepositSettings,
     get_deposit_settings,
@@ -17,6 +17,7 @@ from src.services.deposit_settings import (
 )
 from src.services.deposit_verification import (
     BinanceOrderMatch,
+    DepositVerificationError,
     verify_bep20_tx,
 )
 from src.services.payment_flow import bep20_reference_error, detect_reference_provider
@@ -30,7 +31,7 @@ class DepositTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(detect_reference_provider("P_ABCDEF123456"), "binance_pay")
         self.assertIsNone(detect_reference_provider("not-a-transaction"))
         self.assertIsNone(bep20_reference_error("0x" + "ab" * 32))
-        self.assertIn("Withdrawal ID", bep20_reference_error("388358724421") or "")
+        self.assertIsNone(bep20_reference_error("388358724421"))
 
     async def asyncSetUp(self) -> None:
         self.engine = create_async_engine("sqlite+aiosqlite:///:memory:")
@@ -111,13 +112,75 @@ class DepositTests(unittest.IsolatedAsyncioTestCase):
                 "data": hex(Decimal("5").as_integer_ratio()[0] * 10**18),
             }],
         }
+        block = {"timestamp": hex(int(datetime.now(timezone.utc).timestamp()))}
         with patch(
             "src.services.deposit_verification._rpc_batch",
-            new=AsyncMock(return_value=[receipt, {"from": wallet}, "0x66"]),
+            new=AsyncMock(side_effect=[
+                [receipt, {"from": wallet}, "0x66"],
+                [block],
+            ]),
         ):
             match = await verify_bep20_tx(txid, Decimal("5"), settings)
         self.assertEqual(match.amount, Decimal("5"))
         self.assertEqual(match.confirmations, 3)
+
+    async def test_old_bep20_transfer_is_rejected(self) -> None:
+        wallet = "0x1111111111111111111111111111111111111111"
+        contract = "0x55d398326f99059ff775485246999027b3197955"
+        txid = "0x" + "cd" * 32
+        topic_wallet = "0x" + "0" * 24 + wallet[2:]
+        settings = DepositSettings(
+            binance_uid="", binance_api_key="", binance_secret="",
+            binance_api_base_url="https://api.binance.com", binance_pay_api_key="",
+            binance_pay_secret="", binance_pay_api_base_url="", binance_wallet_address="",
+            bep20_wallet_address=wallet, bsc_rpc_url="https://rpc.invalid",
+            bep20_usdt_contract=contract, minimum=Decimal("1"), maximum=Decimal("100"),
+            required_confirmations=3, allowed_window_minutes=60, uid_enabled=True,
+            order_id_enabled=True, bep20_enabled=True,
+        )
+        receipt = {
+            "status": "0x1", "blockNumber": "0x64",
+            "logs": [{
+                "address": contract,
+                "topics": [
+                    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "0x" + "0" * 64, topic_wallet,
+                ],
+                "data": hex(5 * 10**18),
+            }],
+        }
+        old_block = {"timestamp": hex(int(datetime.now(timezone.utc).timestamp()) - 7200)}
+        with patch(
+            "src.services.deposit_verification._rpc_batch",
+            new=AsyncMock(side_effect=[
+                [receipt, {"from": wallet}, "0x66"],
+                [old_block],
+            ]),
+        ):
+            with self.assertRaisesRegex(DepositVerificationError, "outside the allowed"):
+                await verify_bep20_tx(txid, Decimal("5"), settings)
+
+    async def test_duplicate_shop_reference_cannot_be_claimed_twice(self) -> None:
+        async with self.sessions() as session:
+            await payments.create_payment_verification(
+                session,
+                user_id=7,
+                product_id=1,
+                provider="bep20",
+                reference="0x" + "ef" * 32,
+                qty=1,
+                expected_amount_usdt=Decimal("5"),
+            )
+            with self.assertRaises(payments.PaymentReferenceAlreadyUsed):
+                await payments.create_payment_verification(
+                    session,
+                    user_id=7,
+                    product_id=1,
+                    provider="bep20",
+                    reference="0x" + "ef" * 32,
+                    qty=1,
+                    expected_amount_usdt=Decimal("5"),
+                )
 
     async def test_payment_settings_apply_immediately_from_database(self) -> None:
         async with self.sessions() as session:

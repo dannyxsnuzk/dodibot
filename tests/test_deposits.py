@@ -257,7 +257,6 @@ class DepositTests(unittest.IsolatedAsyncioTestCase):
             [
                 [keyboards.CB_SHOP],
                 [keyboards.CB_DEPOSIT, keyboards.CB_PROFILE],
-                [keyboards.CB_MY_ORDERS],
                 [keyboards.CB_SUPPORT, keyboards.CB_REFER],
             ],
         )
@@ -266,7 +265,6 @@ class DepositTests(unittest.IsolatedAsyncioTestCase):
             [
                 ["🛍️ Shop"],
                 ["💳 Deposit", "👤 My Profile"],
-                ["📦 My Orders"],
                 ["🆘 Support", "🌟 Refer & Earn"],
             ],
         )

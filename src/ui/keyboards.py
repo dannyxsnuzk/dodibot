@@ -161,7 +161,6 @@ def main_menu_kb() -> InlineKeyboardMarkup:
                 btn("Deposit", icon="wallet", style="success", callback_data=CB_DEPOSIT),
                 btn("My Profile", icon="user", style="success", callback_data=CB_PROFILE),
             ),
-            _row(btn("My Orders", icon="orders", style="success", callback_data=CB_MY_ORDERS)),
             _row(
                 btn("Support", icon="support", style="success", callback_data=CB_SUPPORT),
                 btn("Refer & Earn", icon="refer", style="success", callback_data=CB_REFER),

@@ -107,7 +107,7 @@ async def binance_amount(
     message: Message, session: AsyncSession, state: FSMContext
 ) -> None:
     settings = await get_deposit_settings(session)
-    amount = await _parse_amount(message, settings)
+    amount = await _parse_amount(message)
     if amount is None:
         return
     await state.update_data(expected_amount=str(amount))
@@ -331,8 +331,7 @@ async def bep20_start(
 async def bep20_amount(
     message: Message, session: AsyncSession, state: FSMContext
 ) -> None:
-    settings = await get_deposit_settings(session)
-    amount = await _parse_amount(message, settings)
+    amount = await _parse_amount(message)
     if amount is None:
         return
     order = await deposits_repo.create_deposit(
@@ -415,7 +414,7 @@ async def bep20_txid(
                 ),
                 lambda text: _render_for_message(message, session, text),
             )
-            _validate_deposit_amount(match.amount, settings)
+            _validate_deposit_amount(match.amount)
             balance = await deposits_repo.finalize_bep20(session, order, match=match)
         else:
             match = await run_with_progress(
@@ -454,9 +453,7 @@ async def bep20_txid(
     )
 
 
-async def _parse_amount(
-    message: Message, settings: DepositSettings
-) -> Decimal | None:
+async def _parse_amount(message: Message) -> Decimal | None:
     try:
         amount = Decimal((message.text or "").strip())
         if not amount.is_finite():
@@ -465,10 +462,8 @@ async def _parse_amount(
     except (InvalidOperation, ValueError):
         await message.answer("❌ Invalid amount. Enter a number in USDT.")
         return None
-    if amount < settings.minimum or amount > settings.maximum:
-        await message.answer(
-            f"❌ Amount must be between {settings.minimum} and {settings.maximum} USDT."
-        )
+    if amount <= 0:
+        await message.answer("❌ Amount must be greater than 0 USDT.")
         return None
     return amount
 
@@ -476,7 +471,7 @@ async def _parse_amount(
 def _validate_binance_match(
     order, amount: Decimal, paid_at: datetime, settings: DepositSettings
 ) -> None:
-    _validate_deposit_amount(amount, settings)
+    _validate_deposit_amount(amount)
     if order.expected_amount is not None and amount != Decimal(str(order.expected_amount)):
         raise DepositVerificationError("wrong_amount", "The deposited amount does not match.")
     now = datetime.now(timezone.utc)
@@ -489,10 +484,10 @@ def _validate_binance_match(
         )
 
 
-def _validate_deposit_amount(amount: Decimal, settings: DepositSettings) -> None:
-    if amount < settings.minimum or amount > settings.maximum:
+def _validate_deposit_amount(amount: Decimal) -> None:
+    if amount <= 0:
         raise DepositVerificationError(
-            "wrong_amount", "Deposit amount is outside the configured limits."
+            "wrong_amount", "Deposit amount must be greater than 0 USDT."
         )
 
 

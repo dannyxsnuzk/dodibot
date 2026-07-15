@@ -107,8 +107,8 @@ Batman Admin -> Deposits
 ```
 
 Set the Binance UID, Binance API keys, BEP20 receiving wallet, BSC RPC URL,
-USDT contract, min/max deposit limits, confirmation count, and which deposit
-methods are enabled. Changes are stored in the database and apply immediately;
+USDT contract, confirmation count, and which deposit methods are enabled. Buyers
+can deposit any positive USDT amount. Changes are stored in the database and apply immediately;
 you do not need to restart the bot after saving dashboard payment settings.
 
 The `.env` file still provides first-launch defaults. On Railway, keep secrets

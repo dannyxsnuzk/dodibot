@@ -535,8 +535,6 @@ async def deposit_settings_save(
     binance_pay_api_base_url: str = Form(...),
     bsc_rpc_url: str = Form(...),
     bep20_usdt_contract: str = Form(...),
-    minimum: str = Form(...),
-    maximum: str = Form(...),
     required_confirmations: int = Form(...),
     allowed_window_minutes: int = Form(...),
     uid_enabled: str | None = Form(None),
@@ -546,13 +544,6 @@ async def deposit_settings_save(
     _: None = Depends(require_auth),
 ) -> Response:
     current = await get_deposit_settings(db)
-    try:
-        min_amount = Decimal(minimum)
-        max_amount = Decimal(maximum)
-    except InvalidOperation:
-        return RedirectResponse("/payment-settings?error=amount", status_code=303)
-    if min_amount <= 0 or max_amount < min_amount:
-        return RedirectResponse("/payment-settings?error=range", status_code=303)
     if required_confirmations < 1 or required_confirmations > 1000:
         return RedirectResponse("/payment-settings?error=confirmations", status_code=303)
     if allowed_window_minutes < 1 or allowed_window_minutes > 43200:
@@ -591,8 +582,6 @@ async def deposit_settings_save(
         "binance_pay_api_base_url": urls[1],
         "bsc_rpc_url": urls[2],
         "bep20_usdt_contract": token_contract,
-        "minimum": str(min_amount),
-        "maximum": str(max_amount),
         "required_confirmations": str(required_confirmations),
         "allowed_window_minutes": str(allowed_window_minutes),
         "uid_enabled": str(uid_enabled is not None).lower(),

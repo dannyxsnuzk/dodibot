@@ -46,7 +46,6 @@ CB_DEPOSIT_VERIFY_UID = "dep:v:uid"
 CB_DEPOSIT_MANUAL_REVIEW = "dep:mr"
 
 CB_REFRESH_SHOP = "shop:refresh"
-CB_REFRESH_PRODUCT = "shop:rs"  # shop:rs:<product_id>
 CB_PRODUCT = "shop:p"           # shop:p:<id>
 CB_BUY = "shop:buy"             # shop:buy:<product_id>
 CB_BUY_CONFIRM = "shop:bc"      # shop:bc:<product_id>
@@ -260,10 +259,6 @@ def product_detail_kb(product_id: int, can_buy: bool) -> InlineKeyboardMarkup:
         rows.append(_row(
             btn("Out of stock", icon="cross", style="danger", callback_data=CB_NOOP)
         ))
-    rows.append(_row(btn(
-        "Refresh Stock", icon="refresh", style="success",
-        callback_data=f"{CB_REFRESH_PRODUCT}:{product_id}",
-    )))
     rows.append(_row(btn("◀️ Back to Store", style="success", callback_data=CB_SHOP)))
     return InlineKeyboardMarkup(inline_keyboard=rows)
 

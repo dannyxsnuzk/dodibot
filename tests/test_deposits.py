@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, patch
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.db.base import Base
-from src.db.models import User
-from src.repositories import deposits, payments
+from src.db.models import Product, StockItem, User
+from src.repositories import deposits, payments, products
 from src.services.deposit_settings import (
     DepositSettings,
     get_deposit_settings,
@@ -82,6 +82,28 @@ class DepositTests(unittest.IsolatedAsyncioTestCase):
                 )
             user = await session.get(User, 7)
             self.assertEqual(Decimal(str(user.balance_usdt)), Decimal("10"))
+
+    async def test_product_stock_is_fetched_in_one_repository_call(self) -> None:
+        async with self.sessions() as session:
+            product = Product(
+                slug="speed-test",
+                display_name="Speed Test",
+                emoji="",
+                duration_label="1m",
+                price_usdt=Decimal("1"),
+            )
+            session.add(product)
+            await session.flush()
+            session.add_all([
+                StockItem(product_id=product.id, payload="available", status="available"),
+                StockItem(product_id=product.id, payload="sold", status="sold"),
+            ])
+            await session.commit()
+            result = await products.get_product_with_stock(session, product.id)
+            self.assertIsNotNone(result)
+            loaded, stock = result
+            self.assertEqual(loaded.id, product.id)
+            self.assertEqual(stock, 1)
 
     async def test_manual_review_can_credit_once_and_claim_reference(self) -> None:
         txid = "0x" + "de" * 32
@@ -267,11 +289,6 @@ class DepositTests(unittest.IsolatedAsyncioTestCase):
                 ["💳 Deposit", "👤 My Profile"],
                 ["🆘 Support", "🌟 Refer & Earn"],
             ],
-        )
-        product_rows = keyboards.product_detail_kb(42, can_buy=True).inline_keyboard
-        self.assertIn(
-            f"{keyboards.CB_REFRESH_PRODUCT}:42",
-            [row[0].callback_data for row in product_rows],
         )
         deposit_rows = keyboards.deposit_methods_kb(
             binance_enabled=True, bep20_enabled=True

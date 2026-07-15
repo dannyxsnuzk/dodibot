@@ -60,6 +60,8 @@ async def set_last_menu_message(
     user = await session.get(User, user_id)
     if user is None:
         return
+    if user.last_chat_id == chat_id and user.last_menu_message_id == message_id:
+        return
     user.last_menu_message_id = message_id
     user.last_chat_id = chat_id
     await session.commit()

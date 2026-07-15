@@ -139,16 +139,15 @@ async def show_shop(cb: CallbackQuery, session: AsyncSession, state: FSMContext)
         await cb.answer()
 
 
-@router.callback_query(F.data.startswith(f"{kb.CB_REFRESH_PRODUCT}:"))
 @router.callback_query(F.data.startswith(f"{kb.CB_PRODUCT}:"))
 async def show_product(cb: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     await state.clear()
     pid = int((cb.data or "").rsplit(":", 1)[-1])
-    product = await products_repo.get_product(session, pid)
-    if product is None or not product.is_active:
+    product_with_stock = await products_repo.get_product_with_stock(session, pid)
+    if product_with_stock is None or not product_with_stock[0].is_active:
         await cb.answer("Product not available.", show_alert=True)
         return
-    stock = await products_repo.count_available_stock(session, pid)
+    product, stock = product_with_stock
     await render_from_callback(
         cb, session=session,
         text=texts.product_detail(

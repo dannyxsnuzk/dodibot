@@ -44,6 +44,28 @@ async def get_product(session: AsyncSession, product_id: int) -> Product | None:
     return await session.get(Product, product_id)
 
 
+async def get_product_with_stock(
+    session: AsyncSession, product_id: int
+) -> tuple[Product, int] | None:
+    """Fetch one product and its available stock count in a single query."""
+    await release_expired_reservations(session)
+    stock_count = (
+        select(func.count(StockItem.id))
+        .where(
+            StockItem.product_id == Product.id,
+            StockItem.status == "available",
+        )
+        .correlate(Product)
+        .scalar_subquery()
+    )
+    row = (await session.execute(
+        select(Product, stock_count).where(Product.id == product_id)
+    )).first()
+    if row is None:
+        return None
+    return row[0], int(row[1] or 0)
+
+
 async def count_available_stock(session: AsyncSession, product_id: int) -> int:
     await release_expired_reservations(session)
     n = await session.scalar(
@@ -215,7 +237,8 @@ async def release_user_reservations(
         item.status = "available"
         item.reserved_by = None
         item.reserved_until = None
-    await session.commit()
+    if items:
+        await session.commit()
     return len(items)
 
 

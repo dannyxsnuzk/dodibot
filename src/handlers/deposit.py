@@ -10,6 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import get_settings
 from ..repositories import deposits as deposits_repo
 from ..repositories.users import get_user
 from ..services.deposit_settings import DepositSettings, get_deposit_settings
@@ -231,6 +232,9 @@ async def binance_order_input(
         await state.clear()
         await message.answer("Deposit session expired. Please start again.")
         return
+    if await deposits_repo.reference_has_been_submitted(session, reference=reference):
+        await _finish_error(message, session, state, _already_submitted_text())
+        return
     order = await deposits_repo.create_deposit(
         session,
         user_id=message.from_user.id,
@@ -284,7 +288,13 @@ async def binance_order_input(
             detail=exc.detail,
             provider="binance_pay",
         )
-        await _finish_error(message, session, state, _error_text(exc))
+        await _finish_error(
+            message,
+            session,
+            state,
+            _error_text(exc),
+            keyboard=kb.deposit_manual_review_kb(order.id),
+        )
         return
     await state.clear()
     await _render_for_message(
@@ -378,8 +388,24 @@ async def bep20_txid(
     if submitted_provider == "bep20":
         reference = reference.lower()
     data = await state.get_data()
+    retry_order = None
+    if submitted_provider == "bep20":
+        retry_order = await deposits_repo.find_retryable_bep20_deposit(
+            session,
+            user_id=message.from_user.id,
+            txid=reference,
+        )
+    if await deposits_repo.reference_has_been_submitted(session, reference=reference):
+        if retry_order is None:
+            await _finish_error(message, session, state, _already_submitted_text())
+            return
+        order = retry_order
+    else:
+        order = None
     deposit_id = data.get("deposit_id")
-    if deposit_id:
+    if order is not None:
+        pass
+    elif deposit_id:
         order = await deposits_repo.get_deposit(
             session, int(deposit_id), message.from_user.id
         )
@@ -422,10 +448,10 @@ async def bep20_txid(
                 reference,
                 retry_operation(
                     lambda: verify_bep20_tx(
-                        reference,
-                        expected_amount,
-                        settings,
-                        not_before=_deposit_started_at(data),
+                reference,
+                expected_amount,
+                settings,
+                not_before=None if retry_order is not None else _deposit_started_at(data),
                     )
                 ),
                 lambda text: _render_for_message(message, session, text),
@@ -462,7 +488,13 @@ async def bep20_txid(
             detail=exc.detail,
             provider="bsc" if submitted_provider == "bep20" else "binance_pay",
         )
-        await _finish_error(message, session, state, _error_text(exc))
+        await _finish_error(
+            message,
+            session,
+            state,
+            _error_text(exc),
+            keyboard=kb.deposit_manual_review_kb(order.id),
+        )
         return
     await state.clear()
     await _render_for_message(
@@ -473,6 +505,49 @@ async def bep20_txid(
         f"Wallet Balance: <b>{balance} USDT</b>",
         keyboard=kb.main_menu_kb(),
     )
+
+
+@router.callback_query(F.data.startswith(f"{kb.CB_DEPOSIT_MANUAL_REVIEW}:"))
+async def submit_deposit_manual_review(
+    cb: CallbackQuery, session: AsyncSession, state: FSMContext
+) -> None:
+    try:
+        deposit_id = int((cb.data or "").split(":")[2])
+    except (IndexError, ValueError):
+        await cb.answer("Invalid review request.", show_alert=True)
+        return
+    order = await deposits_repo.get_deposit(session, deposit_id, cb.from_user.id)
+    if order is None:
+        await cb.answer("Deposit ticket not found.", show_alert=True)
+        return
+    if not await deposits_repo.submit_for_manual_review(session, order):
+        await cb.answer("This deposit cannot be submitted for review.", show_alert=True)
+        return
+
+    for admin_id in get_settings().admin_ids:
+        with contextlib.suppress(Exception):
+            await cb.bot.send_message(
+                admin_id,
+                "<b>Manual Deposit Review</b>\n\n"
+                f"Deposit: <code>#{order.id}</code>\n"
+                f"User: <code>{order.user_id}</code>\n"
+                f"Method: <code>{_html(order.method)}</code>\n"
+                f"Reference: <code>{_html(order.reference)}</code>\n"
+                "Review it in Admin Dashboard > Payment Settings > Recent Deposits.",
+                parse_mode="HTML",
+            )
+    await state.clear()
+    await render_from_callback(
+        cb,
+        session=session,
+        text=(
+            "<b>Manual Verification Requested</b>\n\n"
+            "Your deposit has been sent to the admin for review. "
+            "You will receive the balance after approval."
+        ),
+        keyboard=kb.main_menu_kb(),
+    )
+    await cb.answer("Submitted for review")
 
 
 async def _parse_amount(message: Message) -> Decimal | None:
@@ -575,11 +650,16 @@ async def _render_for_message(
 
 
 async def _finish_error(
-    message: Message, session: AsyncSession, state: FSMContext, text: str
+    message: Message,
+    session: AsyncSession,
+    state: FSMContext,
+    text: str,
+    *,
+    keyboard=None,
 ) -> None:
     await state.clear()
     await _render_for_message(
-        message, session, text, keyboard=kb.deposit_cancel_kb()
+        message, session, text, keyboard=keyboard or kb.deposit_cancel_kb()
     )
 
 
@@ -595,6 +675,14 @@ def _error_text(exc: DepositVerificationError) -> str:
     if exc.code == "not_found" and "transaction" in exc.detail.lower():
         return "❌ <b>Invalid TXID</b>"
     return f"{labels.get(exc.code, '❌ <b>Verification Failed</b>')}\n\n{_html(exc.detail)}"
+
+
+def _already_submitted_text() -> str:
+    return (
+        "⚠️ <b>This transaction has already been submitted.</b>\n\n"
+        "It cannot be submitted again. Use the existing manual review request "
+        "or contact support."
+    )
 
 
 async def _delete_user_message(message: Message) -> None:

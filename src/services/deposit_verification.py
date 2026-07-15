@@ -333,21 +333,31 @@ async def verify_bep20_tx(
     wallet = settings.bep20_wallet_address.lower()
     contract = settings.bep20_usdt_contract.lower()
     transfer_log: dict | None = None
+    usdt_recipients: list[str] = []
     amount = Decimal("0")
     for row in receipt.get("logs", []):
         topics = row.get("topics") or []
-        if (
+        is_usdt_transfer = (
             str(row.get("address", "")).lower() == contract
             and len(topics) >= 3
             and str(topics[0]).lower() == TRANSFER_TOPIC
-            and f"0x{str(topics[2])[-40:]}".lower() == wallet
-        ):
+        )
+        if not is_usdt_transfer:
+            continue
+        recipient = f"0x{str(topics[2])[-40:]}".lower()
+        usdt_recipients.append(recipient)
+        if recipient == wallet:
             transfer_log = row
             amount = Decimal(int(str(row.get("data", "0x0")), 16)) / Decimal(10**18)
             break
     if transfer_log is None:
+        detail = f"No USDT transfer to configured wallet {wallet} was found."
+        if usdt_recipients:
+            detail += f" This transaction sent USDT to {usdt_recipients[0]}."
+        else:
+            detail += " Confirm the withdrawal used USDT on BNB Smart Chain (BEP20)."
         raise DepositVerificationError(
-            "wrong_recipient", "No USDT transfer to the configured wallet was found."
+            "wrong_recipient", detail
         )
     if expected_amount is not None and amount != expected_amount:
         raise DepositVerificationError(

@@ -83,6 +83,44 @@ class DepositTests(unittest.IsolatedAsyncioTestCase):
             user = await session.get(User, 7)
             self.assertEqual(Decimal(str(user.balance_usdt)), Decimal("10"))
 
+    async def test_manual_review_can_credit_once_and_claim_reference(self) -> None:
+        txid = "0x" + "de" * 32
+        async with self.sessions() as session:
+            order = await deposits.create_deposit(
+                session, user_id=7, method="bep20", expected_amount=None
+            )
+            await deposits.reject_deposit(
+                session,
+                order,
+                reference=txid,
+                code="wrong_recipient",
+                detail="Recipient mismatch.",
+                provider="bsc",
+            )
+            self.assertTrue(
+                await deposits.reference_has_been_submitted(session, reference=txid)
+            )
+            retry_order = await deposits.find_retryable_bep20_deposit(
+                session, user_id=7, txid=txid
+            )
+            self.assertIsNotNone(retry_order)
+            self.assertEqual(retry_order.id, order.id)
+            self.assertTrue(await deposits.submit_for_manual_review(session, order))
+            balance = await deposits.manually_credit_deposit(
+                session,
+                order,
+                amount=Decimal("4.99"),
+                note="Confirmed on BSC explorer.",
+            )
+            self.assertEqual(balance, Decimal("4.99"))
+            self.assertTrue(
+                await deposits.reference_is_used(
+                    session, method="bep20", reference=txid
+                )
+            )
+            user = await session.get(User, 7)
+            self.assertEqual(Decimal(str(user.balance_usdt)), Decimal("4.99"))
+
     async def test_bep20_transfer_log_is_validated(self) -> None:
         wallet = "0x1111111111111111111111111111111111111111"
         contract = "0x55d398326f99059ff775485246999027b3197955"

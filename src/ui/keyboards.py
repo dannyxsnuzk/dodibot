@@ -43,6 +43,7 @@ CB_DEPOSIT_BEP20 = "dep:bep20"
 CB_DEPOSIT_VERIFY = "dep:verify"
 CB_DEPOSIT_VERIFY_ORDER = "dep:v:order"
 CB_DEPOSIT_VERIFY_UID = "dep:v:uid"
+CB_DEPOSIT_MANUAL_REVIEW = "dep:mr"
 
 CB_REFRESH_SHOP = "shop:refresh"
 CB_PRODUCT = "shop:p"           # shop:p:<id>
@@ -367,6 +368,23 @@ def payment_methods_kb(
     ])
     return InlineKeyboardMarkup(
         inline_keyboard=rows
+    )
+
+
+def deposit_manual_review_kb(deposit_id: int) -> InlineKeyboardMarkup:
+    support_username = get_settings().support_username.strip().lstrip("@")
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            _row(btn(
+                "Send for Manual Verification", icon="support", style="success",
+                callback_data=f"{CB_DEPOSIT_MANUAL_REVIEW}:{deposit_id}",
+            )),
+            _row(btn(
+                "Contact Support", icon="support", style="primary",
+                url=f"https://t.me/{support_username}",
+            )),
+            _row(home_button()),
+        ]
     )
 
 

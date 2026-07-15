@@ -29,6 +29,7 @@ from ..db.models import (
     Withdrawal,
 )
 from ..repositories import payments as payments_repo
+from ..repositories import deposits as deposits_repo
 from ..db.session import SessionLocal
 from ..repositories import products as products_repo
 from ..repositories import withdrawals as wd_repo
@@ -505,6 +506,7 @@ async def deposit_settings_page(
     request: Request,
     saved: int | None = None,
     error: str | None = None,
+    review: str | None = None,
     db: AsyncSession = Depends(get_db),
     _: None = Depends(require_auth),
 ) -> HTMLResponse:
@@ -521,6 +523,7 @@ async def deposit_settings_page(
         "logs": logs,
         "saved": saved,
         "error": error,
+        "review": review,
         "api_key_hint": (
             f"{config.binance_api_key[:4]}…{config.binance_api_key[-4:]}"
             if len(config.binance_api_key) >= 10 else ("configured" if config.binance_api_key else "")
@@ -602,3 +605,65 @@ async def deposit_settings_save(
         "bep20_enabled": str(bep20_enabled is not None).lower(),
     })
     return RedirectResponse("/payment-settings?saved=1", status_code=303)
+
+
+@app.post("/deposit-reviews/{deposit_id}/approve")
+async def deposit_review_approve(
+    deposit_id: int,
+    amount: str = Form(...),
+    note: str = Form("manual approval from dashboard"),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(require_auth),
+) -> Response:
+    try:
+        credit_amount = Decimal(amount).quantize(Decimal("0.000001")).normalize()
+        if not credit_amount.is_finite() or credit_amount <= 0:
+            raise InvalidOperation
+    except (InvalidOperation, ValueError):
+        return RedirectResponse("/payment-settings?review=invalid_amount", status_code=303)
+    order = await deposits_repo.get_deposit(db, deposit_id)
+    if order is None:
+        raise HTTPException(404)
+    try:
+        await deposits_repo.manually_credit_deposit(
+            db,
+            order,
+            amount=credit_amount,
+            note=note.strip() or "manual approval from dashboard",
+        )
+    except deposits_repo.DepositManualReviewUnavailable:
+        return RedirectResponse("/payment-settings?review=unavailable", status_code=303)
+    except deposits_repo.DepositAlreadyUsed:
+        return RedirectResponse("/payment-settings?review=already_used", status_code=303)
+    return RedirectResponse("/payment-settings?review=approved", status_code=303)
+
+
+@app.post("/deposit-reviews/{deposit_id}/submit")
+async def deposit_review_submit(
+    deposit_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(require_auth),
+) -> Response:
+    order = await deposits_repo.get_deposit(db, deposit_id)
+    if order is None:
+        raise HTTPException(404)
+    if not await deposits_repo.submit_for_manual_review(db, order):
+        return RedirectResponse("/payment-settings?review=unavailable", status_code=303)
+    return RedirectResponse("/payment-settings?review=submitted", status_code=303)
+
+
+@app.post("/deposit-reviews/{deposit_id}/reject")
+async def deposit_review_reject(
+    deposit_id: int,
+    note: str = Form("rejected from dashboard"),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(require_auth),
+) -> Response:
+    order = await deposits_repo.get_deposit(db, deposit_id)
+    if order is None:
+        raise HTTPException(404)
+    if not await deposits_repo.reject_manual_review(
+        db, order, note=note.strip() or "rejected from dashboard"
+    ):
+        return RedirectResponse("/payment-settings?review=unavailable", status_code=303)
+    return RedirectResponse("/payment-settings?review=rejected", status_code=303)

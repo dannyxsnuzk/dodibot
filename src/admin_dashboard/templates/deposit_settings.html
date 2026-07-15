@@ -6,6 +6,12 @@
 
 {% if saved %}<p class="pill ok">Settings saved</p>{% endif %}
 {% if error %}<p class="pill bad">Invalid setting: {{ error }}</p>{% endif %}
+{% if review == "approved" %}<p class="pill ok">Manual deposit approved and wallet credited.</p>{% endif %}
+{% if review == "submitted" %}<p class="pill ok">Deposit is ready for manual review.</p>{% endif %}
+{% if review == "rejected" %}<p class="pill bad">Manual deposit review rejected.</p>{% endif %}
+{% if review == "invalid_amount" %}<p class="pill bad">Enter a valid positive USDT amount.</p>{% endif %}
+{% if review == "unavailable" %}<p class="pill bad">This deposit is not awaiting manual review.</p>{% endif %}
+{% if review == "already_used" %}<p class="pill bad">This reference has already been credited or approved.</p>{% endif %}
 
 <form method="post" action="/payment-settings" class="card" style="max-width:900px;margin:18px 0">
   <div class="row">
@@ -88,17 +94,34 @@
 <h2 style="margin-top:28px">Recent Deposits</h2>
 <div style="overflow-x:auto">
   <table>
-    <thead><tr><th>ID</th><th>User</th><th>Method</th><th>Expected</th><th>Received</th><th>Reference</th><th>Status</th><th>Created</th></tr></thead>
+    <thead><tr><th>ID</th><th>User</th><th>Method</th><th>Expected</th><th>Received</th><th>Reference</th><th>Status</th><th>Created</th><th>Review</th></tr></thead>
     <tbody>
       {% for d in deposits %}
       <tr>
         <td>{{ d.id }}</td><td>{{ d.user_id }}</td><td>{{ d.method }}</td>
         <td>{{ d.expected_amount or "—" }}</td><td>{{ d.received_amount or "—" }}</td>
         <td><code>{{ d.reference or "—" }}</code></td>
-        <td><span class="pill {% if d.status == 'verified' %}ok{% elif d.status == 'rejected' %}bad{% else %}pending{% endif %}">{{ d.status }}</span></td>
+        <td><span class="pill {% if d.status == 'verified' %}ok{% elif d.status in ['rejected', 'manual_rejected'] %}bad{% else %}pending{% endif %}">{{ d.status }}</span></td>
         <td>{{ d.created_at }}</td>
+        <td>
+          {% if d.status == 'manual_review' %}
+          <form method="post" action="/deposit-reviews/{{ d.id }}/approve" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+            <input type="number" name="amount" min="0.000001" step="0.000001" placeholder="USDT" required style="min-width:92px" />
+            <input type="text" name="note" placeholder="Approval note" style="min-width:130px" />
+            <button type="submit">Approve</button>
+          </form>
+          <form method="post" action="/deposit-reviews/{{ d.id }}/reject" style="display:flex;gap:6px;align-items:center">
+            <input type="text" name="note" placeholder="Rejection note" style="min-width:130px" />
+            <button type="submit" class="danger">Reject</button>
+          </form>
+          {% elif d.status == 'rejected' and d.reference and d.rejection_code != 'already_used' %}
+          <form method="post" action="/deposit-reviews/{{ d.id }}/submit">
+            <button type="submit">Start Manual Review</button>
+          </form>
+          {% else %}-{% endif %}
+        </td>
       </tr>
-      {% else %}<tr><td colspan="8" class="muted">No deposits yet.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="9" class="muted">No deposits yet.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>

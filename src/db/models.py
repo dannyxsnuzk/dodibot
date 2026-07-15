@@ -211,6 +211,23 @@ class WalletTransaction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class DepositReferenceClaim(Base):
+    """Reference reservation created when an admin manually credits a deposit."""
+
+    __tablename__ = "deposit_reference_claims"
+    __table_args__ = (
+        UniqueConstraint("provider", "reference", name="uq_deposit_reference_claims_provider_reference"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    deposit_order_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("deposit_orders.id"), unique=True
+    )
+    provider: Mapped[str] = mapped_column(String(32), index=True)
+    reference: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class VerificationLog(Base):
     __tablename__ = "verification_logs"
 

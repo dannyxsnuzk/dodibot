@@ -97,15 +97,27 @@ def order_summary(
     duration: str,
     qty: int,
     price_each: Decimal,
+    balance: Decimal | None = None,
 ) -> str:
     rendered_emoji = pe_custom(emoji_id, emoji)
     total = (price_each * Decimal(qty)).quantize(Decimal("0.01"))
+    balance_lines = ""
+    if balance is not None:
+        wallet = Decimal(str(balance)).quantize(Decimal("0.01"))
+        deduction = min(max(wallet, Decimal("0.00")), total)
+        amount_to_pay = (total - deduction).quantize(Decimal("0.01"))
+        balance_lines = (
+            f"{pe('coin')} Your Balance: <b>${wallet:.2f} USDT</b>\n"
+            f"✂️ Balance Deduction: <b>-${deduction:.2f} USDT</b>\n"
+            f"💵 Amount to Pay: <b>${amount_to_pay:.2f} USDT</b>\n"
+        )
     return (
         f"{pe('info')} <b>Order Summary</b>\n\n"
         f"{rendered_emoji} <b>{_h(name)} {_h(duration)}</b>\n"
         f"{pe('id')} Qty: <b>{qty}</b>\n"
         f"{pe('coin')} Price: <b>${price_each:.2f} each</b>\n"
-        f"{pe('coin')} Total: <b>${total:.2f} USDT</b>\n\n"
+        f"{pe('coin')} Total: <b>${total:.2f} USDT</b>\n"
+        f"{balance_lines}\n"
         f"{pe('coin')} Choose a payment method:"
     )
 
@@ -118,13 +130,25 @@ def payment_method(
     duration: str,
     qty: int,
     price_each: Decimal,
+    balance: Decimal | None = None,
 ) -> str:
     rendered_emoji = pe_custom(emoji_id, emoji)
     total = (price_each * Decimal(qty)).quantize(Decimal("0.01"))
+    amount_line = f"Total: <b>${total:.2f} USDT</b>"
+    if balance is not None:
+        wallet = Decimal(str(balance)).quantize(Decimal("0.01"))
+        deduction = min(max(wallet, Decimal("0.00")), total)
+        amount_to_pay = (total - deduction).quantize(Decimal("0.01"))
+        amount_line = (
+            f"Total: <b>${total:.2f} USDT</b>\n"
+            f"{pe('coin')} Your Balance: <b>${wallet:.2f} USDT</b>\n"
+            f"✂️ Balance Deduction: <b>-${deduction:.2f} USDT</b>\n"
+            f"💵 Amount to Pay: <b>${amount_to_pay:.2f} USDT</b>"
+        )
     return (
         f"{pe('coin')} <b>Select Payment Method</b>\n\n"
         f"{rendered_emoji} <b>{_h(name)} {_h(duration)}</b> x {qty}\n"
-        f"Total: <b>${total:.2f} USDT</b>"
+        f"{amount_line}"
     )
 
 
@@ -135,9 +159,14 @@ def binance_pay_instructions(
     qty: int,
     price_each: Decimal,
     binance_id: str,
+    amount_due: Decimal | None = None,
 ) -> str:
+    amount = ""
+    if amount_due is not None:
+        amount = f"💵 Amount to Pay: <b>${Decimal(str(amount_due)):.2f} USDT</b>\n\n"
     return (
         "🟡 <b>Binance Pay</b>\n\n"
+        f"{amount}"
         "💡 You can send <b>any amount</b> — it will be added to your balance.\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n\n"
         "🏦 <b>Binance Pay / Internal Transfer</b>\n\n"
@@ -156,9 +185,14 @@ def bep20_payment_instructions(
     qty: int,
     price_each: Decimal,
     wallet_address: str,
+    amount_due: Decimal | None = None,
 ) -> str:
+    amount = ""
+    if amount_due is not None:
+        amount = f"💵 Amount to Pay: <b>${Decimal(str(amount_due)):.2f} USDT</b>\n\n"
     return (
         "🟢 <b>USDT (BEP20 - BSC)</b>\n\n"
+        f"{amount}"
         "💡 You can send <b>any amount</b> — it will be added to your balance.\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n\n"
         "🪙 <b>USDT (BEP20 - BSC)</b>\n\n"

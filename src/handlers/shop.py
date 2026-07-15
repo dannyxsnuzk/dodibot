@@ -78,6 +78,22 @@ def _payment_timing() -> tuple[int, int]:
     return wait_seconds, interval_seconds
 
 
+async def _order_amounts(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    product,
+    qty: int,
+) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+    total = (Decimal(str(product.price_usdt)) * Decimal(qty)).quantize(Decimal("0.01"))
+    user = await users_repo.get_user(session, user_id)
+    balance = Decimal(str(user.balance_usdt or 0)) if user is not None else Decimal("0")
+    balance = balance.quantize(Decimal("0.01"))
+    deduction = min(max(balance, Decimal("0.00")), total)
+    amount_due = (total - deduction).quantize(Decimal("0.01"))
+    return total, balance, deduction, amount_due
+
+
 async def _release_payment_reservation(session: AsyncSession, payment) -> None:
     await products_repo.release_user_reservations(
         session,
@@ -272,9 +288,13 @@ async def show_payment_methods(
     if product is None or not product.is_active:
         await cb.answer("Unavailable.", show_alert=True)
         return
-    total = (Decimal(str(product.price_usdt)) * Decimal(qty)).quantize(Decimal("0.01"))
-    user = await users_repo.get_user(session, cb.from_user.id)
-    balance = Decimal(str(user.balance_usdt or 0)) if user is not None else Decimal("0")
+    _total, balance, _deduction, amount_due = await _order_amounts(
+        session, user_id=cb.from_user.id, product=product, qty=qty
+    )
+    if amount_due <= 0:
+        await cb.answer("Your balance is enough. Use Pay with Balance.", show_alert=True)
+        await _render_order_summary(cb, session, product_id=pid, qty=qty)
+        return
     await render_from_callback(
         cb,
         session=session,
@@ -285,8 +305,9 @@ async def show_payment_methods(
             duration=product.duration_label,
             qty=qty,
             price_each=Decimal(str(product.price_usdt)),
+            balance=balance,
         ),
-        keyboard=kb.payment_methods_kb(pid, qty, can_pay_balance=balance >= total),
+        keyboard=kb.payment_methods_kb(pid, qty, can_pay_balance=False),
     )
     await cb.answer()
 
@@ -404,6 +425,13 @@ async def show_binance_payment(
     if product is None or not product.is_active:
         await cb.answer("Unavailable.", show_alert=True)
         return
+    _total, _balance, deduction, amount_due = await _order_amounts(
+        session, user_id=cb.from_user.id, product=product, qty=qty
+    )
+    if amount_due <= 0:
+        await cb.answer("Your balance is enough. Use Pay with Balance.", show_alert=True)
+        await _render_order_summary(cb, session, product_id=pid, qty=qty)
+        return
     reserved = await products_repo.reserve_stock_items(
         session,
         product_id=pid,
@@ -435,6 +463,8 @@ async def show_binance_payment(
         qty=qty,
         reserved_product_id=pid,
         payment_provider="binance_pay",
+        balance_deduction=str(deduction),
+        amount_due=str(amount_due),
         payment_chat_id=cb.message.chat.id if cb.message else None,
         payment_message_id=cb.message.message_id if cb.message else None,
         tx_attempts=0,
@@ -448,6 +478,7 @@ async def show_binance_payment(
             qty=qty,
             price_each=Decimal(str(product.price_usdt)),
             binance_id=binance_id,
+            amount_due=amount_due,
         ),
         keyboard=kb.binance_payment_kb(pid, qty),
     )
@@ -466,6 +497,13 @@ async def show_bep20_payment(
     product = await products_repo.get_product(session, pid)
     if product is None or not product.is_active:
         await cb.answer("Unavailable.", show_alert=True)
+        return
+    _total, _balance, deduction, amount_due = await _order_amounts(
+        session, user_id=cb.from_user.id, product=product, qty=qty
+    )
+    if amount_due <= 0:
+        await cb.answer("Your balance is enough. Use Pay with Balance.", show_alert=True)
+        await _render_order_summary(cb, session, product_id=pid, qty=qty)
         return
     reserved = await products_repo.reserve_stock_items(
         session,
@@ -498,6 +536,8 @@ async def show_bep20_payment(
         qty=qty,
         reserved_product_id=pid,
         payment_provider="bep20",
+        balance_deduction=str(deduction),
+        amount_due=str(amount_due),
         payment_chat_id=cb.message.chat.id if cb.message else None,
         payment_message_id=cb.message.message_id if cb.message else None,
         tx_attempts=0,
@@ -511,6 +551,7 @@ async def show_bep20_payment(
             qty=qty,
             price_each=Decimal(str(product.price_usdt)),
             wallet_address=wallet_address,
+            amount_due=amount_due,
         ),
         keyboard=kb.bep20_payment_kb(pid, qty),
     )
@@ -624,7 +665,11 @@ async def receive_binance_reference(
                     chat_id=payment_chat_id,
                     message_id=int(payment_message_id),
                 )
-    expected = (Decimal(str(product.price_usdt)) * Decimal(qty)).quantize(Decimal("0.01"))
+    expected = Decimal(str(data.get("amount_due") or "0")).quantize(Decimal("0.01"))
+    if expected <= 0:
+        _total, _balance, _deduction, expected = await _order_amounts(
+            session, user_id=message.from_user.id, product=product, qty=qty
+        )
     payment = await payments_repo.create_payment_verification(
         session,
         user_id=message.from_user.id,
@@ -752,6 +797,9 @@ async def _render_order_summary(
     if qty > stock:
         await cb.answer(f"Only {stock} code(s) available right now.", show_alert=True)
         return
+    total, balance, _deduction, _amount_due = await _order_amounts(
+        session, user_id=cb.from_user.id, product=product, qty=qty
+    )
     await render_from_callback(
         cb,
         session=session,
@@ -762,8 +810,9 @@ async def _render_order_summary(
             duration=product.duration_label,
             qty=qty,
             price_each=Decimal(str(product.price_usdt)),
+            balance=balance,
         ),
-        keyboard=kb.order_summary_kb(product_id, qty),
+        keyboard=kb.order_summary_kb(product_id, qty, can_pay_balance=balance >= total),
     )
     await cb.answer()
 
@@ -786,6 +835,9 @@ async def _send_order_summary(
             reply_markup=kb.quantity_kb(product_id),
         )
         return
+    total, balance, _deduction, _amount_due = await _order_amounts(
+        session, user_id=message.from_user.id, product=product, qty=qty
+    )
     await message.answer(
         texts.order_summary(
             name=product.display_name,
@@ -794,8 +846,9 @@ async def _send_order_summary(
             duration=product.duration_label,
             qty=qty,
             price_each=Decimal(str(product.price_usdt)),
+            balance=balance,
         ),
-        reply_markup=kb.order_summary_kb(product_id, qty),
+        reply_markup=kb.order_summary_kb(product_id, qty, can_pay_balance=balance >= total),
     )
 
 
@@ -1082,6 +1135,53 @@ async def _deliver_verified_payment(
             disable_web_page_preview=True,
         )
 
+    product = await products_repo.get_product(session, payment.product_id)
+    if product is None:
+        await payments_repo.mark_rejected(
+            session,
+            payment,
+            status="delivery_failed",
+            note="product_missing_after_payment_verification",
+        )
+        await bot.send_message(
+            chat_id,
+            "Payment verified, but delivery failed because the product is no longer available. Support will review it.",
+            parse_mode="HTML",
+        )
+        return
+    order_total = (Decimal(str(product.price_usdt)) * Decimal(payment.qty)).quantize(Decimal("0.01"))
+    external_paid = Decimal(str(payment.expected_amount_usdt)).quantize(Decimal("0.01"))
+    balance_deduction = max(Decimal("0.00"), (order_total - external_paid).quantize(Decimal("0.01")))
+    if balance_deduction > 0:
+        user = await users_repo.get_user(session, payment.user_id)
+        current_balance = Decimal(str(user.balance_usdt or 0)) if user is not None else Decimal("0")
+        if user is None or current_balance < balance_deduction:
+            await payments_repo.mark_rejected(
+                session,
+                payment,
+                status="delivery_failed",
+                note="wallet_balance_changed_after_payment_verification",
+            )
+            await products_repo.release_user_reservations(
+                session,
+                product_id=payment.product_id,
+                user_id=payment.user_id,
+            )
+            await bot.send_message(
+                chat_id,
+                "Payment verified, but your wallet balance is no longer enough for the balance deduction. Support will review it.",
+                parse_mode="HTML",
+            )
+            return
+        user.balance_usdt = current_balance - balance_deduction
+        session.add(Transaction(
+            user_id=payment.user_id,
+            kind="balance_purchase",
+            amount_usdt=-balance_deduction,
+            ref_id=payment.id,
+            note=f"partial balance purchase product_id={payment.product_id} qty={payment.qty}",
+        ))
+
     try:
         result = await buy_product_quantity(
             session,
@@ -1090,6 +1190,15 @@ async def _deliver_verified_payment(
             qty=payment.qty,
         )
     except OutOfStock:
+        if balance_deduction > 0:
+            user.balance_usdt = current_balance
+            session.add(Transaction(
+                user_id=payment.user_id,
+                kind="balance_refund",
+                amount_usdt=balance_deduction,
+                ref_id=payment.id,
+                note=f"partial balance refund product_id={payment.product_id} qty={payment.qty}",
+            ))
         await payments_repo.mark_rejected(
             session,
             payment,
@@ -1109,6 +1218,15 @@ async def _deliver_verified_payment(
         return
     except BuyError as e:
         log.warning("payment_verify deliver_buy_error payment_id=%s error=%s", payment.id, e)
+        if balance_deduction > 0:
+            user.balance_usdt = current_balance
+            session.add(Transaction(
+                user_id=payment.user_id,
+                kind="balance_refund",
+                amount_usdt=balance_deduction,
+                ref_id=payment.id,
+                note=f"partial balance refund product_id={payment.product_id} qty={payment.qty}",
+            ))
         await payments_repo.mark_rejected(
             session,
             payment,
@@ -1124,7 +1242,7 @@ async def _deliver_verified_payment(
         return
 
     await payments_repo.mark_delivered(session, payment, order_ids=[o.id for o in result.orders])
-    total = Decimal(str(payment.expected_amount_usdt)).quantize(Decimal("0.01"))
+    total = order_total
     with contextlib.suppress(Exception):
         await bot.delete_message(chat_id=chat_id, message_id=message_id)
     for (active_chat_id, active_message_id), active_payment_id in list(_ACTIVE_PAYMENT_BY_MESSAGE.items()):

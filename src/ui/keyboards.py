@@ -310,13 +310,21 @@ def custom_quantity_kb(product_id: int) -> InlineKeyboardMarkup:
     )
 
 
-def order_summary_kb(product_id: int, qty: int) -> InlineKeyboardMarkup:
+def order_summary_kb(product_id: int, qty: int, *, can_pay_balance: bool = False) -> InlineKeyboardMarkup:
+    pay_row = [
+        btn(
+            "Pay directly", icon="coin", style="success",
+            callback_data=f"{CB_PAY_METHODS}:{product_id}:{qty}",
+        )
+    ]
+    if can_pay_balance:
+        pay_row.append(btn(
+            "Pay with Balance", icon="coin", style="success",
+            callback_data=f"{CB_PAY_BALANCE}:{product_id}:{qty}",
+        ))
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            _row(btn(
-                "Pay directly", icon="coin", style="success",
-                callback_data=f"{CB_PAY_METHODS}:{product_id}:{qty}",
-            )),
+            pay_row,
             _row(
                 btn("Back", icon="back", style="success", callback_data=f"{CB_BUY}:{product_id}"),
                 btn(

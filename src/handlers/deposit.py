@@ -23,6 +23,7 @@ from ..services.payment_flow import (
     bep20_reference_error,
     detect_reference_provider,
     is_plausible_reference,
+    normalize_payment_reference,
     payment_instructions,
     retry_operation,
     run_with_progress,
@@ -212,7 +213,7 @@ async def choose_uid_payment(
 async def binance_order_input(
     message: Message, session: AsyncSession, state: FSMContext
 ) -> None:
-    reference = (message.text or "").strip()
+    reference = normalize_payment_reference(message.text or "")
     if not is_plausible_reference("binance_pay", reference):
         await message.answer("Please send a valid Binance Pay Order ID / transaction ID.")
         return
@@ -363,7 +364,7 @@ async def bep20_amount(
 async def bep20_txid(
     message: Message, session: AsyncSession, state: FSMContext
 ) -> None:
-    reference = (message.text or "").strip()
+    reference = normalize_payment_reference(message.text or "")
     reference_error = bep20_reference_error(reference)
     if reference_error:
         await message.answer(reference_error)

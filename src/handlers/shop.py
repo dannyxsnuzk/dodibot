@@ -17,7 +17,7 @@ from ..db.session import SessionLocal
 from ..repositories import payments as payments_repo
 from ..repositories import products as products_repo
 from ..repositories import users as users_repo
-from ..services.payment_flow import verify_reference
+from ..services.payment_flow import normalize_payment_reference, verify_reference
 from ..services.payment_verification import detect_id_type
 from ..services.shop import BuyError, OutOfStock, buy_product_quantity
 from .states import ShopStates
@@ -565,7 +565,7 @@ async def receive_binance_reference(
     session: AsyncSession,
     state: FSMContext,
 ) -> None:
-    reference = (message.text or "").strip()
+    reference = normalize_payment_reference(message.text or "")
     if not reference:
         await message.answer("Please send the payment Order ID / TxID / transaction hash.")
         return

@@ -20,7 +20,11 @@ from src.services.deposit_verification import (
     DepositVerificationError,
     verify_bep20_tx,
 )
-from src.services.payment_flow import bep20_reference_error, detect_reference_provider
+from src.services.payment_flow import (
+    bep20_reference_error,
+    detect_reference_provider,
+    normalize_payment_reference,
+)
 from src.ui import keyboards
 
 
@@ -32,6 +36,11 @@ class DepositTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(detect_reference_provider("not-a-transaction"))
         self.assertIsNone(bep20_reference_error("0x" + "ab" * 32))
         self.assertIsNone(bep20_reference_error("388358724421"))
+        self.assertIn("wallet address", bep20_reference_error("0x" + "ab" * 20))
+        txid = "0x" + "ab" * 32
+        self.assertEqual(
+            normalize_payment_reference(f"https://bscscan.com/tx/{txid}"), txid
+        )
 
     async def asyncSetUp(self) -> None:
         self.engine = create_async_engine("sqlite+aiosqlite:///:memory:")

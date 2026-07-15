@@ -15,6 +15,8 @@ from ..ui import texts
 T = TypeVar("T")
 
 _ETH_TX_RE = re.compile(r"^0x[a-fA-F0-9]{64}$")
+_ETH_TX_SEARCH_RE = re.compile(r"0x[a-fA-F0-9]{64}")
+_ETH_ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
 _HEX_TX_RE = re.compile(r"^[a-fA-F0-9]{64}$")
 _BINANCE_PAY_TX_RE = re.compile(r"^P_[A-Z0-9]{8,}$", re.IGNORECASE)
 _BINANCE_ORDER_RE = re.compile(r"^\d{12,24}$")
@@ -40,6 +42,15 @@ def payment_instructions(provider: str, destination: str) -> str:
         name="", duration="", qty=1, price_each=Decimal("0"),
         binance_id=destination,
     )
+
+
+def normalize_payment_reference(reference: str) -> str:
+    """Extract a BSC hash from copied explorer links or receipt text."""
+    value = reference.strip()
+    match = _ETH_TX_SEARCH_RE.search(value)
+    if match:
+        return match.group(0).lower()
+    return value
 
 
 def is_plausible_reference(provider: str, reference: str) -> bool:
@@ -68,6 +79,12 @@ def bep20_reference_error(reference: str) -> str | None:
     value = reference.strip()
     if _ETH_TX_RE.fullmatch(value):
         return None
+    if _ETH_ADDRESS_RE.fullmatch(value):
+        return (
+            "This is a wallet address, not a transaction hash. In Binance Withdraw "
+            "History, open the completed withdrawal and paste its TxID / TxHash "
+            "(0x followed by 64 characters)."
+        )
     if is_plausible_reference("binance_pay", value):
         return None
     return (

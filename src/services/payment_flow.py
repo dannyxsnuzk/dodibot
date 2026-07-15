@@ -18,6 +18,7 @@ _ETH_TX_RE = re.compile(r"^0x[a-fA-F0-9]{64}$")
 _HEX_TX_RE = re.compile(r"^[a-fA-F0-9]{64}$")
 _BINANCE_PAY_TX_RE = re.compile(r"^P_[A-Z0-9]{8,}$", re.IGNORECASE)
 _BINANCE_ORDER_RE = re.compile(r"^\d{12,24}$")
+_BINANCE_REFERENCE_RE = re.compile(r"^[A-Za-z0-9_-]{6,128}$")
 
 
 @dataclass
@@ -48,6 +49,7 @@ def is_plausible_reference(provider: str, reference: str) -> bool:
     return bool(
         _ETH_TX_RE.fullmatch(value) or _HEX_TX_RE.fullmatch(value)
         or _BINANCE_PAY_TX_RE.fullmatch(value) or _BINANCE_ORDER_RE.fullmatch(value)
+        or _BINANCE_REFERENCE_RE.fullmatch(value)
     )
 
 

@@ -139,10 +139,11 @@ async def show_shop(cb: CallbackQuery, session: AsyncSession, state: FSMContext)
         await cb.answer()
 
 
+@router.callback_query(F.data.startswith(f"{kb.CB_REFRESH_PRODUCT}:"))
 @router.callback_query(F.data.startswith(f"{kb.CB_PRODUCT}:"))
 async def show_product(cb: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     await state.clear()
-    pid = int(cb.data.split(":")[2])
+    pid = int((cb.data or "").rsplit(":", 1)[-1])
     product = await products_repo.get_product(session, pid)
     if product is None or not product.is_active:
         await cb.answer("Product not available.", show_alert=True)
@@ -309,7 +310,7 @@ async def show_payment_methods(
         ),
         keyboard=kb.payment_methods_kb(pid, qty, can_pay_balance=False),
     )
-    await cb.answer()
+    await cb.answer("Stock refreshed" if cb.data.startswith(kb.CB_REFRESH_PRODUCT) else None)
 
 
 @router.callback_query(F.data.startswith(f"{kb.CB_PAY_BALANCE}:"))

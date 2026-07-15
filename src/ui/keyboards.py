@@ -46,6 +46,7 @@ CB_DEPOSIT_VERIFY_UID = "dep:v:uid"
 CB_DEPOSIT_MANUAL_REVIEW = "dep:mr"
 
 CB_REFRESH_SHOP = "shop:refresh"
+CB_REFRESH_PRODUCT = "shop:rs"  # shop:rs:<product_id>
 CB_PRODUCT = "shop:p"           # shop:p:<id>
 CB_BUY = "shop:buy"             # shop:buy:<product_id>
 CB_BUY_CONFIRM = "shop:bc"      # shop:bc:<product_id>
@@ -155,17 +156,15 @@ def home_button() -> InlineKeyboardButton:
 def main_menu_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
+            _row(btn("Shop", icon="shop", style="primary", callback_data=CB_SHOP)),
             _row(
-                btn("🛒 Shop", style="primary", callback_data=CB_SHOP),
-                btn("💰 Deposit", style="success", callback_data=CB_DEPOSIT),
+                btn("Deposit", icon="wallet", style="success", callback_data=CB_DEPOSIT),
+                btn("My Profile", icon="user", style="success", callback_data=CB_PROFILE),
             ),
+            _row(btn("My Orders", icon="orders", style="success", callback_data=CB_MY_ORDERS)),
             _row(
-                btn("👤 My Profile", style="success", callback_data=CB_PROFILE),
-                btn("📦 My Orders", style="success", callback_data=CB_MY_ORDERS),
-            ),
-            _row(
-                btn("🆘 Support", style="success", callback_data=CB_SUPPORT),
-                btn("⭐ Refer & Earn", style="success", callback_data=CB_REFER),
+                btn("Support", icon="support", style="success", callback_data=CB_SUPPORT),
+                btn("Refer & Earn", icon="refer", style="success", callback_data=CB_REFER),
             ),
         ]
     )
@@ -244,7 +243,9 @@ def shop_list_kb(
         if settings.button_styles_enabled:
             fields["style"] = "primary"
         rows.append(_row(InlineKeyboardButton(**fields)))  # type: ignore[arg-type]
-    rows.append(_row(btn("🔄 Refresh", style="success", callback_data=CB_REFRESH_SHOP)))
+    rows.append(_row(btn(
+        "Refresh Stock", icon="refresh", style="success", callback_data=CB_REFRESH_SHOP
+    )))
     rows.append(_row(btn("◀️ Back", style="success", callback_data=CB_MAIN)))
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -260,6 +261,10 @@ def product_detail_kb(product_id: int, can_buy: bool) -> InlineKeyboardMarkup:
         rows.append(_row(
             btn("Out of stock", icon="cross", style="danger", callback_data=CB_NOOP)
         ))
+    rows.append(_row(btn(
+        "Refresh Stock", icon="refresh", style="success",
+        callback_data=f"{CB_REFRESH_PRODUCT}:{product_id}",
+    )))
     rows.append(_row(btn("◀️ Back to Store", style="success", callback_data=CB_SHOP)))
     return InlineKeyboardMarkup(inline_keyboard=rows)
 

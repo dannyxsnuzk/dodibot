@@ -255,18 +255,25 @@ class DepositTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             [[button.callback_data for button in row] for row in main_rows],
             [
-                [keyboards.CB_SHOP, keyboards.CB_DEPOSIT],
-                [keyboards.CB_PROFILE, keyboards.CB_MY_ORDERS],
+                [keyboards.CB_SHOP],
+                [keyboards.CB_DEPOSIT, keyboards.CB_PROFILE],
+                [keyboards.CB_MY_ORDERS],
                 [keyboards.CB_SUPPORT, keyboards.CB_REFER],
             ],
         )
         self.assertEqual(
             [[button.text for button in row] for row in main_rows],
             [
-                ["🛒 Shop", "💰 Deposit"],
-                ["👤 My Profile", "📦 My Orders"],
-                ["🆘 Support", "⭐ Refer & Earn"],
+                ["🛍️ Shop"],
+                ["💳 Deposit", "👤 My Profile"],
+                ["📦 My Orders"],
+                ["🆘 Support", "🌟 Refer & Earn"],
             ],
+        )
+        product_rows = keyboards.product_detail_kb(42, can_buy=True).inline_keyboard
+        self.assertIn(
+            f"{keyboards.CB_REFRESH_PRODUCT}:42",
+            [row[0].callback_data for row in product_rows],
         )
         deposit_rows = keyboards.deposit_methods_kb(
             binance_enabled=True, bep20_enabled=True

@@ -50,7 +50,8 @@ def product_detail(
 ) -> str:
     desc = _h(description.strip()) if description.strip() else "<i>No description.</i>"
     stock_line = (
-        f"{pe('check')} <b>In stock:</b> {stock}" if stock > 0
+        f"{pe('check')} <b>Reseller delivery:</b> live" if stock < 0
+        else f"{pe('check')} <b>In stock:</b> {stock}" if stock > 0
         else f"{pe('cross')} <b>Out of stock</b>"
     )
     rendered_emoji = pe_custom(emoji_id, emoji)

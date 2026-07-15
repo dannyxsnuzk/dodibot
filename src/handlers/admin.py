@@ -740,6 +740,7 @@ async def _approve_payment(
             user_id=payment.user_id,
             product_id=payment.product_id,
             qty=payment.qty,
+            idempotency_key=f"payment:{payment.id}",
         )
     except OutOfStock:
         await payments_repo.mark_rejected(

@@ -211,6 +211,29 @@ class WalletTransaction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class ResellerFulfillment(Base):
+    """One non-retryable external supplier purchase per checkout attempt."""
+
+    __tablename__ = "reseller_fulfillments"
+    __table_args__ = (
+        UniqueConstraint("request_key", name="uq_reseller_fulfillments_request_key"),
+        UniqueConstraint("order_id", name="uq_reseller_fulfillments_order_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(Integer, ForeignKey("orders.id"))
+    provider: Mapped[str] = mapped_column(String(32), default="canboso")
+    request_key: Mapped[str] = mapped_column(String(160))
+    vendor_product_id: Mapped[str] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(24), default="pending", index=True)
+    vendor_order_code: Mapped[str] = mapped_column(String(128), default="")
+    response_payload: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class DepositReferenceClaim(Base):
     """Reference reservation created when an admin manually credits a deposit."""
 

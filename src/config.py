@@ -85,6 +85,17 @@ class Settings(BaseSettings):
         alias="PAYMENT_VERIFY_INTERVAL_SECONDS",
     )
 
+    # Canboso buyer/reseller API. Keep the buyer key in Railway variables only.
+    canboso_api_base_url: str = Field(
+        "https://canboso.com",
+        alias="CANBOSO_API_BASE_URL",
+    )
+    canboso_buyer_key: str = Field("", alias="CANBOSO_BUYER_KEY")
+    canboso_request_timeout_seconds: int = Field(
+        25,
+        alias="CANBOSO_REQUEST_TIMEOUT_SECONDS",
+    )
+
     database_url: str = Field(
         "sqlite+aiosqlite:///./data/bot.db",
         alias="DATABASE_URL",

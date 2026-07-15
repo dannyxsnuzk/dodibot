@@ -35,9 +35,12 @@ async def list_active_products_with_stock(
         .order_by(Product.sort_order, Product.id)
     )
     if in_stock_only:
-        stmt = stmt.where(func.coalesce(stock_subq.c.c, 0) > 0)
+        stmt = stmt.where(
+            (func.coalesce(stock_subq.c.c, 0) > 0)
+            | (Product.delivery_type == "canboso")
+        )
     rows = (await session.execute(stmt)).all()
-    return [(p, int(c)) for p, c in rows]
+    return [(p, -1 if p.delivery_type == "canboso" else int(c)) for p, c in rows]
 
 
 async def get_product(session: AsyncSession, product_id: int) -> Product | None:
@@ -63,7 +66,8 @@ async def get_product_with_stock(
     )).first()
     if row is None:
         return None
-    return row[0], int(row[1] or 0)
+    product = row[0]
+    return product, (-1 if product.delivery_type == "canboso" else int(row[1] or 0))
 
 
 async def count_available_stock(session: AsyncSession, product_id: int) -> int:
@@ -87,6 +91,8 @@ async def upsert_product(
     is_active: bool = True,
     sort_order: int = 0,
     emoji_id: str | None = None,
+    delivery_type: str = "stock_pool",
+    api_handler: str | None = None,
 ) -> Product:
     existing = await session.scalar(select(Product).where(Product.slug == slug))
     if existing is None:
@@ -100,6 +106,8 @@ async def upsert_product(
     existing.is_active = is_active
     existing.sort_order = sort_order
     existing.emoji_id = emoji_id or None
+    existing.delivery_type = delivery_type
+    existing.api_handler = api_handler or None
     await session.commit()
     return existing
 

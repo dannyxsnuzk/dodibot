@@ -32,6 +32,27 @@ async def create_order(
     return order
 
 
+async def create_external_order(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    product: Product,
+) -> Order:
+    """Persist a pending external delivery before the supplier is contacted."""
+    order = Order(
+        user_id=user_id,
+        product_id=product.id,
+        stock_item_id=None,
+        price_usdt=product.price_usdt,
+        payload_snapshot="",
+        status="fulfillment_pending",
+    )
+    session.add(order)
+    await session.commit()
+    await session.refresh(order)
+    return order
+
+
 async def list_orders(
     session: AsyncSession, user_id: int, *, page: int = 1, page_size: int = 5
 ) -> tuple[list[tuple[Order, Product]], int]:

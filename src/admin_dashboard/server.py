@@ -180,6 +180,8 @@ async def products_page(
                  "Use the inactive toggle to hide it instead.")
     elif err == "price":
         flash = "Invalid price — please enter a number."
+    if err == "delivery":
+        flash = "Select a delivery type. Canboso products need a Canboso Product ID."
     return templates.TemplateResponse(request, "products.html", {
         "products": rows,
         "inactive": inactive,
@@ -199,6 +201,8 @@ async def products_new(
     description: str = Form(""),
     sort_order: int = Form(0),
     is_active: str = Form("on"),
+    delivery_type: str = Form("stock_pool"),
+    canboso_product_id: str = Form(""),
     db: AsyncSession = Depends(get_db),
     _: None = Depends(require_auth),
 ) -> Response:
@@ -206,12 +210,19 @@ async def products_new(
         price = Decimal(price_usdt)
     except InvalidOperation:
         return RedirectResponse("/products?err=price", status_code=303)
+    if delivery_type not in {"stock_pool", "canboso"}:
+        return RedirectResponse("/products?err=delivery", status_code=303)
+    vendor_id = canboso_product_id.strip()
+    if delivery_type == "canboso" and not vendor_id:
+        return RedirectResponse("/products?err=delivery", status_code=303)
     await products_repo.upsert_product(
         db, slug=slug, display_name=display_name, emoji=emoji,
         duration_label=duration_label, price_usdt=price,
         description=description, sort_order=sort_order,
         is_active=is_active == "on",
         emoji_id=(emoji_id or "").strip() or None,
+        delivery_type=delivery_type,
+        api_handler=f"canboso:{vendor_id}" if delivery_type == "canboso" else None,
     )
     return RedirectResponse("/products", status_code=303)
 
@@ -227,6 +238,8 @@ async def products_update(
     description: str = Form(""),
     sort_order: int = Form(0),
     is_active: str | None = Form(None),
+    delivery_type: str = Form("stock_pool"),
+    canboso_product_id: str = Form(""),
     db: AsyncSession = Depends(get_db),
     _: None = Depends(require_auth),
 ) -> Response:
@@ -237,6 +250,11 @@ async def products_update(
         p.price_usdt = Decimal(price_usdt)
     except InvalidOperation:
         return RedirectResponse("/products?err=price", status_code=303)
+    if delivery_type not in {"stock_pool", "canboso"}:
+        return RedirectResponse("/products?err=delivery", status_code=303)
+    vendor_id = canboso_product_id.strip()
+    if delivery_type == "canboso" and not vendor_id:
+        return RedirectResponse("/products?err=delivery", status_code=303)
     p.display_name = display_name
     p.emoji = emoji
     p.emoji_id = (emoji_id or "").strip() or None
@@ -244,6 +262,8 @@ async def products_update(
     p.description = description
     p.sort_order = sort_order
     p.is_active = bool(is_active)
+    p.delivery_type = delivery_type
+    p.api_handler = f"canboso:{vendor_id}" if delivery_type == "canboso" else None
     await db.commit()
     return RedirectResponse("/products", status_code=303)
 
@@ -469,6 +489,7 @@ async def payments_approve(
             user_id=payment.user_id,
             product_id=payment.product_id,
             qty=payment.qty,
+            idempotency_key=f"payment:{payment.id}",
         )
     except OutOfStock:
         await payments_repo.mark_rejected(db, payment, status="delivery_failed", note="out_of_stock_manual")

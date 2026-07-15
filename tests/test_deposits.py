@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from src.db.base import Base
 from src.db.models import Product, StockItem, User
 from src.repositories import deposits, payments, products
+from src.services.canboso import CanbosoPurchase
 from src.services.deposit_settings import (
     DepositSettings,
     get_deposit_settings,
@@ -25,6 +26,7 @@ from src.services.payment_flow import (
     detect_reference_provider,
     normalize_payment_reference,
 )
+from src.services.shop import buy_product_quantity
 from src.ui import keyboards
 
 
@@ -104,6 +106,39 @@ class DepositTests(unittest.IsolatedAsyncioTestCase):
             loaded, stock = result
             self.assertEqual(loaded.id, product.id)
             self.assertEqual(stock, 1)
+
+    async def test_canboso_product_delivers_without_local_stock(self) -> None:
+        async with self.sessions() as session:
+            product = Product(
+                slug="canboso-test",
+                display_name="Canboso Test",
+                emoji="",
+                duration_label="1m",
+                price_usdt=Decimal("2"),
+                delivery_type="canboso",
+                api_handler="canboso:vendor-product-1",
+            )
+            session.add(product)
+            await session.commit()
+
+            response = CanbosoPurchase(
+                order_code="CB-123",
+                delivered_payload="Canboso order: CB-123\n\naccount@example.com:secret",
+                raw_response="{}",
+            )
+            with patch("src.services.shop.canboso_purchase", new=AsyncMock(return_value=response)):
+                result = await buy_product_quantity(
+                    session,
+                    user_id=7,
+                    product_id=product.id,
+                    qty=2,
+                    idempotency_key="test-canboso-1",
+                )
+
+            self.assertEqual(len(result.orders), 1)
+            self.assertEqual(result.orders[0].status, "completed")
+            self.assertEqual(Decimal(str(result.orders[0].price_usdt)), Decimal("4"))
+            self.assertIn("account@example.com", result.payloads[0])
 
     async def test_manual_review_can_credit_once_and_claim_reference(self) -> None:
         txid = "0x" + "de" * 32

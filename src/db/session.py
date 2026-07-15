@@ -42,6 +42,14 @@ async def init_db() -> None:
                 await conn.execute(
                     text("ALTER TABLE products ADD COLUMN emoji_id VARCHAR(32)")
                 )
+            if "delivery_type" not in existing:
+                await conn.execute(
+                    text("ALTER TABLE products ADD COLUMN delivery_type VARCHAR(16) DEFAULT 'stock_pool'")
+                )
+            if "api_handler" not in existing:
+                await conn.execute(
+                    text("ALTER TABLE products ADD COLUMN api_handler VARCHAR(64)")
+                )
 
             cols = await conn.execute(text("PRAGMA table_info(stock_items)"))
             existing = {row[1] for row in cols.fetchall()}

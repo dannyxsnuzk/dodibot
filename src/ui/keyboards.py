@@ -228,7 +228,8 @@ def shop_list_kb(
     settings = get_settings()
     rows: list[list[InlineKeyboardButton]] = []
     for pid, name, emoji, eid, duration, stock in products:
-        label = f"{name} {duration} ({stock})"
+        stock_label = "Auto" if stock < 0 else str(stock)
+        label = f"{name} {duration} ({stock_label})"
         fields: dict[str, object] = {
             "text": label,
             "callback_data": f"{CB_PRODUCT}:{pid}",

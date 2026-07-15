@@ -19,7 +19,14 @@ from ..repositories import products as products_repo
 from ..repositories import users as users_repo
 from ..services.payment_flow import normalize_payment_reference, verify_reference
 from ..services.payment_verification import detect_id_type
-from ..services.shop import BuyError, OutOfStock, buy_product_quantity
+from ..services.shop import (
+    BuyError,
+    ExternalFulfillmentFailed,
+    ExternalFulfillmentUnknown,
+    OutOfStock,
+    buy_product_quantity,
+    uses_local_stock,
+)
 from .states import ShopStates
 from ..ui import keyboards as kb
 from ..ui import texts
@@ -159,7 +166,7 @@ async def show_product(cb: CallbackQuery, session: AsyncSession, state: FSMConte
             description=product.description,
             stock=stock,
         ),
-        keyboard=kb.product_detail_kb(product.id, can_buy=stock > 0),
+        keyboard=kb.product_detail_kb(product.id, can_buy=stock != 0),
     )
     await cb.answer()
 
@@ -346,21 +353,16 @@ async def pay_with_balance(
             keyboard=kb.payment_methods_kb(pid, qty, can_pay_balance=False),
         )
         return
-    reserved = await products_repo.reserve_stock_items(
-        session,
-        product_id=pid,
-        user_id=cb.from_user.id,
-        qty=qty,
-        ttl_minutes=10,
-    )
-    if reserved < qty:
-        await products_repo.release_user_reservations(
-            session,
-            product_id=pid,
-            user_id=cb.from_user.id,
+    if uses_local_stock(product):
+        reserved = await products_repo.reserve_stock_items(
+            session, product_id=pid, user_id=cb.from_user.id, qty=qty, ttl_minutes=10
         )
-        await cb.answer(f"Only {reserved} code(s) could be reserved. Please choose a smaller quantity.", show_alert=True)
-        return
+        if reserved < qty:
+            await products_repo.release_user_reservations(
+                session, product_id=pid, user_id=cb.from_user.id
+            )
+            await cb.answer(f"Only {reserved} code(s) could be reserved. Please choose a smaller quantity.", show_alert=True)
+            return
 
     user.balance_usdt = balance - total
     session.add(Transaction(
@@ -375,7 +377,31 @@ async def pay_with_balance(
             user_id=cb.from_user.id,
             product_id=pid,
             qty=qty,
+            idempotency_key=f"wallet:{cb.id}",
         )
+    except ExternalFulfillmentFailed as e:
+        # The supplier explicitly declined; undo the wallet debit it was called with.
+        user = await users_repo.get_user(session, cb.from_user.id)
+        if user is not None:
+            user.balance_usdt = Decimal(str(user.balance_usdt or 0)) + total
+            session.add(Transaction(
+                user_id=cb.from_user.id,
+                kind="balance_refund",
+                amount_usdt=total,
+                note=f"Canboso declined product_id={pid} qty={qty}",
+            ))
+            await session.commit()
+        await cb.answer(str(e), show_alert=True)
+        return
+    except ExternalFulfillmentUnknown as e:
+        for admin_id in get_settings().admin_ids:
+            with contextlib.suppress(Exception):
+                await cb.bot.send_message(
+                    admin_id,
+                    f"Canboso order needs review: user {cb.from_user.id}, product {pid}, quantity {qty}.",
+                )
+        await cb.answer(str(e), show_alert=True)
+        return
     except OutOfStock:
         await session.rollback()
         await products_repo.release_user_reservations(
@@ -432,21 +458,16 @@ async def show_binance_payment(
         await cb.answer("Your balance is enough. Use Pay with Balance.", show_alert=True)
         await _render_order_summary(cb, session, product_id=pid, qty=qty)
         return
-    reserved = await products_repo.reserve_stock_items(
-        session,
-        product_id=pid,
-        user_id=cb.from_user.id,
-        qty=qty,
-        ttl_minutes=10,
-    )
-    if reserved < qty:
-        await products_repo.release_user_reservations(
-            session,
-            product_id=pid,
-            user_id=cb.from_user.id,
+    if uses_local_stock(product):
+        reserved = await products_repo.reserve_stock_items(
+            session, product_id=pid, user_id=cb.from_user.id, qty=qty, ttl_minutes=10
         )
-        await cb.answer(f"Only {reserved} code(s) could be reserved. Please choose a smaller quantity.", show_alert=True)
-        return
+        if reserved < qty:
+            await products_repo.release_user_reservations(
+                session, product_id=pid, user_id=cb.from_user.id
+            )
+            await cb.answer(f"Only {reserved} code(s) could be reserved. Please choose a smaller quantity.", show_alert=True)
+            return
     settings = get_settings()
     binance_id = settings.binance_uid.strip()
     if not binance_id:
@@ -505,21 +526,16 @@ async def show_bep20_payment(
         await cb.answer("Your balance is enough. Use Pay with Balance.", show_alert=True)
         await _render_order_summary(cb, session, product_id=pid, qty=qty)
         return
-    reserved = await products_repo.reserve_stock_items(
-        session,
-        product_id=pid,
-        user_id=cb.from_user.id,
-        qty=qty,
-        ttl_minutes=10,
-    )
-    if reserved < qty:
-        await products_repo.release_user_reservations(
-            session,
-            product_id=pid,
-            user_id=cb.from_user.id,
+    if uses_local_stock(product):
+        reserved = await products_repo.reserve_stock_items(
+            session, product_id=pid, user_id=cb.from_user.id, qty=qty, ttl_minutes=10
         )
-        await cb.answer(f"Only {reserved} code(s) could be reserved. Please choose a smaller quantity.", show_alert=True)
-        return
+        if reserved < qty:
+            await products_repo.release_user_reservations(
+                session, product_id=pid, user_id=cb.from_user.id
+            )
+            await cb.answer(f"Only {reserved} code(s) could be reserved. Please choose a smaller quantity.", show_alert=True)
+            return
     settings = get_settings()
     wallet_address = settings.bep20_wallet_address or settings.receiving_wallet_address
     if not wallet_address:
@@ -797,10 +813,11 @@ async def _render_order_summary(
     if qty < 1:
         await cb.answer("Quantity must be at least 1.", show_alert=True)
         return
-    stock = await products_repo.count_available_stock(session, product_id)
-    if qty > stock:
-        await cb.answer(f"Only {stock} code(s) available right now.", show_alert=True)
-        return
+    if uses_local_stock(product):
+        stock = await products_repo.count_available_stock(session, product_id)
+        if qty > stock:
+            await cb.answer(f"Only {stock} code(s) available right now.", show_alert=True)
+            return
     total, balance, _deduction, _amount_due = await _order_amounts(
         session, user_id=cb.from_user.id, product=product, qty=qty
     )
@@ -832,13 +849,14 @@ async def _send_order_summary(
     if product is None or not product.is_active:
         await message.answer("Product is no longer available.", reply_markup=kb.main_menu_kb())
         return
-    stock = await products_repo.count_available_stock(session, product_id)
-    if qty > stock:
-        await message.answer(
-            f"Only {stock} code(s) available right now. Please choose a smaller quantity.",
-            reply_markup=kb.quantity_kb(product_id),
-        )
-        return
+    if uses_local_stock(product):
+        stock = await products_repo.count_available_stock(session, product_id)
+        if qty > stock:
+            await message.answer(
+                f"Only {stock} code(s) available right now. Please choose a smaller quantity.",
+                reply_markup=kb.quantity_kb(product_id),
+            )
+            return
     total, balance, _deduction, _amount_due = await _order_amounts(
         session, user_id=message.from_user.id, product=product, qty=qty
     )
@@ -1192,6 +1210,7 @@ async def _deliver_verified_payment(
             user_id=payment.user_id,
             product_id=payment.product_id,
             qty=payment.qty,
+            idempotency_key=f"payment:{payment.id}",
         )
     except OutOfStock:
         if balance_deduction > 0:
